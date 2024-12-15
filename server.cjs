@@ -48,7 +48,7 @@ const sequelize = new Sequelize(
 // Определяем модель User
 const User = sequelize.define('User', {
   telegramId: {
-    type: DataTypes.STRING,
+    type: DataTypes.BIGINT, // Изменить тип с STRING на BIGINT
     allowNull: false,
     unique: true
   },
