@@ -19,7 +19,7 @@ readme.md
 eslint.config.js
 dist-ssr
 *.local
-
+index.html
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
