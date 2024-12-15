@@ -237,47 +237,27 @@ async function authMiddleware(req, res) {
 
 const routes = {
   GET: {
-    '/sync-user-data': async (req, res, query) => {
-      const authError = await authMiddleware(req, res);
-      if (authError) return authError;
-
-      const { telegramId } = query;
+    '/get-root-balance': async (req, res, query) => {
+      const telegramId = query.telegramId;
+      
+      if (!telegramId) {
+        return { status: 400, body: { error: 'Missing telegramId parameter' } };
+      }
+  
       try {
-        const initData = req.headers['x-telegram-init-data'];
-        const urlParams = new URLSearchParams(initData);
-        const userDataStr = urlParams.get('user');
-        const userData = userDataStr ? JSON.parse(userDataStr) : {};
-        
-        // Используем first_name если username отсутствует
-        const username = userData.username || userData.first_name || `user_${telegramId}`;
-
-        let user = await User.findOne({ where: { telegramId } });
-        const isNewUser = !user;
-
-        if (isNewUser) {
-          const newReferralCode = crypto.randomBytes(4).toString('hex');
-          user = await User.create({
-            telegramId,
-            username,
-            referralCode: newReferralCode,
-            referredBy: null
-          });
-        } else {
-          // Обновляем username если он изменился
-          if (user.username !== username) {
-            await user.update({ username });
-          }
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          return { status: 404, body: { error: 'User not found' } };
         }
-
-        return {
-          status: 200,
-          body: {
-            isNewUser,
-            rootBalance: user.rootBalance,
-          }
+  
+        return { 
+          status: 200, 
+          body: { 
+            rootBalance: user.rootBalance 
+          } 
         };
       } catch (error) {
-        console.error('Error syncing user data:', error);
+        console.error('Error getting root balance:', error);
         return { status: 500, body: { error: 'Internal server error' } };
       }
     },
