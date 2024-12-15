@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 public/
 src/
-index.html
 package-lock.json
 postcss.config.js
 tailwind.config.js
