@@ -666,7 +666,8 @@ const serveStaticFile = (filePath, res) => {
   fs.readFile(filePath, (error, content) => {
     if (error) {
       if(error.code === 'ENOENT') {
-        fs.readFile(path.join(__dirname, '..', 'client', 'main.html'), (error, content) => {
+        // Если файл не найден, возвращаем index.html для SPA
+        fs.readFile(path.join(__dirname, 'dist', 'index.html'), (error, content) => {
           if (error) {
             res.writeHead(404);
             res.end('Файл не найден');
@@ -702,7 +703,7 @@ const server = https.createServer(options, async (req, res) => {
     res.writeHead(result.status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result.body));
   } else {
-    let filePath = path.join(__dirname, 'root', req.url === '/' ? 'index.html' : req.url);
+    let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
     serveStaticFile(filePath, res);
   }
 });
