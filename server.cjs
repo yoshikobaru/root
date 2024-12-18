@@ -238,46 +238,57 @@ async function authMiddleware(req, res) {
 const routes = {
   GET: {
     '/get-user': async (req, res, query) => {
-      const telegramId = query.telegramId;
-      
-      if (!telegramId) {
-        return { 
-          status: 400, 
-          body: { error: 'Telegram ID is required' } 
-        };
+  const telegramId = query.telegramId;
+  
+  if (!telegramId) {
+    return { 
+      status: 400, 
+      body: { error: 'Telegram ID is required' } 
+    };
+  }
+
+  try {
+    let user = await User.findOne({ where: { telegramId } });
+    
+    if (user) {
+      // Проверяем наличие реферального кода
+      if (!user.referralCode) {
+        const newReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await user.update({ referralCode: newReferralCode });
+        user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
       }
 
-      try {
-        const user = await User.findOne({ where: { telegramId } });
-        if (!user) {
-          return { 
-            status: 404, 
-            body: { error: 'User not found' } 
-          };
-        }
-
-        return { 
-          status: 200, 
-          body: {
-            success: true,
-            user: {
-              id: user.id,
-              telegramId: user.telegramId,
-              username: user.username,
-              referralCode: user.referralCode,
-              rootBalance: user.rootBalance,
-              referredBy: user.referredBy
-            }
+      return { 
+        status: 200, 
+        body: {
+          success: true,
+          user: {
+            id: user.id,
+            telegramId: user.telegramId,
+            username: user.username,
+            referralCode: user.referralCode,
+            rootBalance: user.rootBalance,
+            referredBy: user.referredBy
           }
-        };
-      } catch (error) {
-        console.error('Error getting user:', error);
-        return { 
-          status: 500, 
-          body: { error: 'Failed to get user' } 
-        };
-      }
-    },
+        }
+      };
+    }
+
+    return { 
+      status: 404, 
+      body: { 
+        success: false,
+        error: 'User not found' 
+      } 
+    };
+  } catch (error) {
+    console.error('Error getting user:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Failed to get user' } 
+    };
+  }
+},
     '/get-root-balance': async (req, res, query) => {
       const telegramId = query.telegramId;
       
