@@ -65,6 +65,11 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  referralRewardsCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    allowNull: false
+  },
   rootBalance: {
     type: DataTypes.DECIMAL(10, 2), // для хранения значений с 2 знаками после запятой
     defaultValue: 0
@@ -370,15 +375,30 @@ const routes = {
   }
 
   try {
-    const count = await User.count({
-      where: { referredBy: telegramId }
+    const user = await User.findOne({ where: { telegramId } });
+    if (!user) {
+      return { 
+        status: 404, 
+        body: { error: 'User not found' } 
+      };
+    }
+
+    // Получаем количество рефералов
+    const referralCount = await User.count({
+      where: { referredBy: user.referralCode }
     });
+
+    // Вычисляем статистику для фронтенда
+    const rewardsEarned = Math.floor(referralCount / 3);
+    const nextRewardAt = (rewardsEarned + 1) * 3;
 
     return { 
       status: 200, 
       body: { 
         success: true,
-        count 
+        count: referralCount,
+        rewardsEarned,
+        nextRewardAt
       } 
     };
   } catch (error) {
@@ -388,7 +408,7 @@ const routes = {
       body: { error: 'Failed to get referral count' } 
     };
   }
-  },
+},
 '/create-skin-invoice': async (req, res, query) => {
     const { telegramId, stars, skinName } = query;
     
@@ -659,8 +679,47 @@ const routes = {
             where: { referralCode: referredBy } 
           });
           
-          // Если реферер не найден, просто создаем пользователя без referredBy
-          if (!referrer) {
+          if (referrer) {
+            console.log(`User ${telegramId} was referred by ${referrer.telegramId}`);
+            
+            try {
+              // Отправляем уведомление рефереру
+              await bot.telegram.sendMessage(
+                referrer.telegramId,
+                `🎉 New referral! User ${username} joined using your link!\n\nKeep sharing to earn more rewards!`
+              );
+
+              // Получаем количество рефералов
+              const referralCount = await User.count({
+                where: { referredBy: referrer.referralCode }
+              });
+
+              // Проверяем, нужно ли выдать награду
+              const newRewardsCount = Math.floor(referralCount / 3);
+              const currentRewardsCount = referrer.referralRewardsCount || 0;
+
+              if (newRewardsCount > currentRewardsCount) {
+                // Вычисляем количество новых наград
+                const rewardsToGive = newRewardsCount - currentRewardsCount;
+                const rewardAmount = rewardsToGive * 0.5;
+
+                // Обновляем баланс и счетчик наград реферера
+                await referrer.update({
+                  rootBalance: Number((referrer.rootBalance + rewardAmount).toFixed(2)),
+                  referralRewardsCount: newRewardsCount
+                });
+
+                // Отправляем уведомление о награде
+                await bot.telegram.sendMessage(
+                  referrer.telegramId,
+                  `🎯 Congratulations! You've earned ${rewardAmount} ROOT for inviting ${rewardsToGive * 3} friends!\n\nKeep inviting to earn more!`
+                );
+              }
+
+            } catch (error) {
+              console.error('Failed to process referral rewards:', error);
+            }
+          } else {
             referredBy = null;
           }
         }
@@ -671,7 +730,8 @@ const routes = {
           username,
           referralCode,
           rootBalance: 0,
-          referredBy: referredBy || null
+          referredBy: referredBy || null,
+          referralRewardsCount: 0
         });
 
         resolve({
