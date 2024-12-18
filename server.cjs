@@ -237,28 +237,90 @@ async function authMiddleware(req, res) {
 
 const routes = {
   GET: {
+    '/get-user': async (req, res, query) => {
+      const telegramId = query.telegramId;
+      
+      if (!telegramId) {
+        return { 
+          status: 400, 
+          body: { error: 'Telegram ID is required' } 
+        };
+      }
+
+      try {
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          return { 
+            status: 404, 
+            body: { error: 'User not found' } 
+          };
+        }
+
+        return { 
+          status: 200, 
+          body: {
+            success: true,
+            user: {
+              id: user.id,
+              telegramId: user.telegramId,
+              username: user.username,
+              referralCode: user.referralCode,
+              rootBalance: user.rootBalance,
+              referredBy: user.referredBy
+            }
+          }
+        };
+      } catch (error) {
+        console.error('Error getting user:', error);
+        return { 
+          status: 500, 
+          body: { error: 'Failed to get user' } 
+        };
+      }
+    },
     '/get-root-balance': async (req, res, query) => {
       const telegramId = query.telegramId;
       
       if (!telegramId) {
-        return { status: 400, body: { error: 'Missing telegramId parameter' } };
+        return { 
+          status: 400, 
+          body: { error: 'Missing telegramId parameter' } 
+        };
       }
   
       try {
         const user = await User.findOne({ where: { telegramId } });
         if (!user) {
-          return { status: 404, body: { error: 'User not found' } };
+          return { 
+            status: 404, 
+            body: { 
+              success: false,
+              error: 'User not found' 
+            } 
+          };
         }
   
         return { 
           status: 200, 
           body: { 
-            rootBalance: user.rootBalance 
+            success: true,
+            rootBalance: user.rootBalance,
+            user: {
+              telegramId: user.telegramId,
+              username: user.username,
+              referralCode: user.referralCode
+            }
           } 
         };
       } catch (error) {
         console.error('Error getting root balance:', error);
-        return { status: 500, body: { error: 'Internal server error' } };
+        return { 
+          status: 500, 
+          body: { 
+            success: false,
+            error: 'Internal server error' 
+          } 
+        };
       }
     },
     '/get-referral-link': async (req, res, query) => {
@@ -286,42 +348,36 @@ const routes = {
         return { status: 500, body: { error: 'Internal server error' } };
       }
     },
-    '/get-referred-friends': async (req, res, query) => {
-  console.log('Получен запрос на /get-referred-friends');
+    '/get-referral-count': async (req, res, query) => {
   const telegramId = query.telegramId;
   
   if (!telegramId) {
-    console.log('Отсутствует telegramId');
-    return { status: 400, body: { error: 'Missing telegramId parameter' } };
+    return { 
+      status: 400, 
+      body: { error: 'Telegram ID is required' } 
+    };
   }
 
   try {
-    console.log('Searching for referred friends for user with telegramId:', telegramId);
-    const user = await User.findOne({ where: { telegramId } });
-    if (user) {
-      const referredFriends = await User.findAll({
-        where: { referredBy: user.referralCode },
-        attributes: ['telegramId', 'username']
-      });
-      console.log('Found referred friends:', referredFriends.length);
-      return { 
-        status: 200, 
-        body: { 
-          referredFriends: referredFriends.map(friend => ({
-            id: friend.telegramId,
-            username: friend.username || null // Возвращаем null, если username не установлен
-          })) 
-        } 
-      };
-    } else {
-      console.log('User not found');
-      return { status: 404, body: { error: 'User not found' } };
-    }
+    const count = await User.count({
+      where: { referredBy: telegramId }
+    });
+
+    return { 
+      status: 200, 
+      body: { 
+        success: true,
+        count 
+      } 
+    };
   } catch (error) {
-    console.error('Error processing request:', error);
-    return { status: 500, body: { error: 'Internal server error' } };
+    console.error('Error getting referral count:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Failed to get referral count' } 
+    };
   }
-},
+  },
 '/create-skin-invoice': async (req, res, query) => {
     const { telegramId, stars, skinName } = query;
     
@@ -544,6 +600,93 @@ const routes = {
           });
         });
       },
+      '/create-user': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { telegramId, username, referralCode, referredBy } = data;
+        
+        if (!telegramId || !referralCode) {
+          resolve({ 
+            status: 400, 
+            body: { error: 'Telegram ID and referral code are required' } 
+          });
+          return;
+        }
+
+        // Проверяем существующего пользователя
+        let user = await User.findOne({ where: { telegramId } });
+        
+        if (user) {
+          resolve({
+            status: 200,
+            body: {
+              success: true,
+              user: {
+                id: user.id,
+                telegramId: user.telegramId,
+                username: user.username,
+                referralCode: user.referralCode,
+                rootBalance: user.rootBalance,
+                referredBy: user.referredBy
+              }
+            }
+          });
+          return;
+        }
+
+        // Проверяем реферальный код если он есть
+        if (referredBy) {
+          const referrer = await User.findOne({ 
+            where: { referralCode: referredBy } 
+          });
+          
+          // Если реферер не найден, просто создаем пользователя без referredBy
+          if (!referrer) {
+            referredBy = null;
+          }
+        }
+
+        // Создаем нового пользователя
+        user = await User.create({
+          telegramId,
+          username,
+          referralCode,
+          rootBalance: 0,
+          referredBy: referredBy || null
+        });
+
+        resolve({
+          status: 200,
+          body: {
+            success: true,
+            user: {
+              id: user.id,
+              telegramId: user.telegramId,
+              username: user.username,
+              referralCode: user.referralCode,
+              rootBalance: user.rootBalance,
+              referredBy: user.referredBy
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error creating user:', error);
+        resolve({ 
+          status: 500, 
+          body: { error: 'Failed to create user' } 
+        });
+      }
+    });
+  });
+},
       '/admin/broadcast': async (req, res) => {
     const authError = await authMiddleware(req, res);
     if (authError) return authError;
