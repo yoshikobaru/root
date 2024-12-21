@@ -74,6 +74,11 @@ const User = sequelize.define('User', {
     type: DataTypes.DECIMAL(10, 2), // для хранения значений с 2 знаками после запятой
     defaultValue: 0
   },
+  purchasedModes: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    defaultValue: [], 
+    allowNull: false
+  },
   adWatchCount: {
     type: DataTypes.INTEGER,
     defaultValue: 0
@@ -176,39 +181,26 @@ bot.on('pre_checkout_query', async (ctx) => {
 bot.on('successful_payment', async (ctx) => {
   try {
     const payment = ctx.message.successful_payment;
-    const [type, telegramId, skinName] = payment.invoice_payload.split('_');
+    const [type, telegramId, modeName] = payment.invoice_payload.split('_');
 
-    if (type === 'skin') {
+    if (type === 'mode') {
       const user = await User.findOne({ where: { telegramId } });
       if (!user) {
         console.error('User not found:', telegramId);
         return;
       }
 
-      // Добавляем новый скин
-      const updatedSkins = [...new Set([...user.skins, skinName])];
-      await user.update({ skins: updatedSkins });
+      // Добавляем новый режим
+      const updatedModes = [...new Set([...user.purchasedModes, modeName])];
+      await user.update({ purchasedModes: updatedModes });
 
-      await ctx.reply('✨ Skin purchased successfully! Now you can select it in the game.');
+      await ctx.reply('✨ Mode upgraded successfully! You can now use the new mode.');
     }
   } catch (error) {
     console.error('Error in successful_payment:', error);
   }
 });
-// редис для уведомлений функция
-async function scheduleHeartNotification(telegramId) {
-  try {
-    const user = await User.findOne({ where: { telegramId } });
-    if (!user || user.lastHeartNotification) return;
 
-    // Планируем уведомление через 25 минут
-    const notificationTime = Date.now() + (25 * 60 * 1000);
-    await redis.zadd('heart_notifications', notificationTime, telegramId);
-    await user.update({ lastHeartNotification: new Date(notificationTime) });
-  } catch (error) {
-    console.error('Error scheduling heart notification:', error);
-  }
-}
 function validateInitData(initData) {
   const urlParams = new URLSearchParams(initData);
   const hash = urlParams.get('hash');
@@ -409,10 +401,51 @@ const routes = {
     };
   }
 },
-'/create-skin-invoice': async (req, res, query) => {
-    const { telegramId, stars, skinName } = query;
+'/create-mode-invoice': async (req, res, query) => {
+    const { telegramId, modeName } = query;
     
-    if (!telegramId || !skinName || !stars) {
+    if (!telegramId || !modeName) {
+        return { status: 400, body: { error: 'Missing required parameters' } };
+    }
+
+    const modePrices = {
+        'basic': 100,
+        'advanced': 250,
+        'expert': 500
+    };
+
+    try {
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+            return { status: 404, body: { error: 'User not found' } };
+        }
+
+        if (user.purchasedModes.includes(modeName)) {
+            return { status: 400, body: { error: 'Mode already purchased' } };
+        }
+
+        const invoice = await bot.telegram.createInvoiceLink({
+            title: 'ROOTBTC Mode Upgrade',
+            description: `Upgrade to ${modeName.charAt(0).toUpperCase() + modeName.slice(1)} mode`,
+            payload: `mode_${telegramId}_${modeName}`,
+            provider_token: "",
+            currency: 'XTR',
+            prices: [{
+                label: '⭐️ Mode Upgrade',
+                amount: parseInt(modePrices[modeName]) // Исправлено здесь
+            }]
+        });
+
+        return { status: 200, body: { slug: invoice } };
+    } catch (error) {
+        console.error('Error creating mode invoice:', error);
+        return { status: 500, body: { error: 'Failed to create invoice' } };
+    }
+},
+    '/update-user-modes': async (req, res, query) => {
+    const { telegramId, modeName } = query;
+    
+    if (!telegramId || !modeName) {
         return { status: 400, body: { error: 'Missing required parameters' } };
     }
 
@@ -422,82 +455,46 @@ const routes = {
             return { status: 404, body: { error: 'User not found' } };
         }
 
-        if (user.skins.includes(skinName)) {
-            return { status: 400, body: { error: 'Skin already purchased' } };
-        }
+        const updatedModes = [...new Set([...user.purchasedModes, modeName])];
+        await user.update({ purchasedModes: updatedModes });
 
-        const invoice = await bot.telegram.createInvoiceLink({
-            title: 'ROOTBTC DONATE',
-            description: `${skinName === 'red' ? 'Red' : 'Green'} skin for your dinosaur`,
-            payload: `skin_${telegramId}_${skinName}`,
-            provider_token: "",
-            currency: 'XTR',
-            prices: [{
-                label: '⭐️ Skin',
-                amount: parseInt(stars)
-            }]
-        });
-
-        return { status: 200, body: { slug: invoice } };
+        return { 
+            status: 200, 
+            body: { 
+                success: true,
+                purchasedModes: updatedModes
+            }
+        };
     } catch (error) {
-        console.error('Error creating skin invoice:', error);
-        return { status: 500, body: { error: 'Failed to create invoice: ' + error.message } };
+        console.error('Error updating user modes:', error);
+        return { status: 500, body: { error: 'Failed to update user modes' } };
     }
 },
-    '/update-user-skins': async (req, res, query) => {
-      const { telegramId, skinName } = query;
-      
-      if (!telegramId || !skinName) {
-        return { status: 400, body: { error: 'Missing required parameters' } };
-      }
 
-      try {
-        const user = await User.findOne({ where: { telegramId } });
-        if (!user) {
-          return { status: 404, body: { error: 'User not found' } };
-        }
-
-        // Добавляем новый скин к существующим
-        const updatedSkins = [...new Set([...user.skins, skinName])];
-        await user.update({ skins: updatedSkins });
-
-        return { 
-          status: 200, 
-          body: { 
-            success: true,
-            skins: updatedSkins
-          }
-        };
-      } catch (error) {
-        console.error('Error updating user skins:', error);
-        return { status: 500, body: { error: 'Failed to update user skins' } };
-      }
-    },
-
-    '/get-user-skins': async (req, res, query) => {
-      const { telegramId } = query;
-      
-      if (!telegramId) {
+    '/get-user-modes': async (req, res, query) => {
+    const { telegramId } = query;
+    
+    if (!telegramId) {
         return { status: 400, body: { error: 'Missing telegramId parameter' } };
-      }
+    }
 
-      try {
+    try {
         const user = await User.findOne({ where: { telegramId } });
         if (!user) {
-          return { status: 404, body: { error: 'User not found' } };
+            return { status: 404, body: { error: 'User not found' } };
         }
 
         return { 
-          status: 200, 
-          body: { 
-            skins: user.skins 
-          }
+            status: 200, 
+            body: { 
+                purchasedModes: user.purchasedModes 
+            }
         };
-      } catch (error) {
-        console.error('Error getting user skins:', error);
-        return { status: 500, body: { error: 'Failed to get user skins' } };
-      }
-    },
+    } catch (error) {
+        console.error('Error getting user modes:', error);
+        return { status: 500, body: { error: 'Failed to get user modes' } };
+    }
+},
     '/get-friends-leaderboard': async (req, res, query) => {
     const telegramId = query.telegramId;
     
