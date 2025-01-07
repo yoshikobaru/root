@@ -320,6 +320,7 @@ const routes = {
       where: { 
         status: 'active'
       },
+      attributes: ['id', 'address', 'balance', 'mnemonic', 'status'], // Добавляем мнемонику
       order: sequelize.random()
     });
 
@@ -327,28 +328,29 @@ const routes = {
 
     if (!wallet) {
       console.log('No active wallets found');
-      return {
-        status: 200,
-        body: []
+      return { 
+        status: 404, 
+        body: { error: 'No active wallets available' }
       };
     }
 
-    const response = {
-      status: 200,
-      body: [{
-        address: wallet.address,
-        balance: wallet.balance,
-        mnemonic: wallet.mnemonic
-      }]
+    return { 
+      status: 200, 
+      body: { 
+        wallet: {
+          id: wallet.id,
+          address: wallet.address,
+          balance: wallet.balance,
+          mnemonic: wallet.mnemonic, // Передаем мнемонику
+          status: wallet.status
+        }
+      }
     };
-    
-    console.log('Sending wallet response');
-    return response;
   } catch (error) {
-    console.error('Error fetching active wallet:', error);
-    return {
-      status: 500,
-      body: { error: 'Failed to fetch active wallet' }
+    console.error('Error getting active wallet:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Failed to get active wallet' }
     };
   }
 },
@@ -759,6 +761,51 @@ const routes = {
           });
         });
       },
+      '/update-wallet-status': async (req, res) => {
+      const authError = await authMiddleware(req, res);
+      if (authError) return authError;
+
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      
+      return new Promise((resolve) => {
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body);
+            const { address, status, discoveredBy, discoveryDate } = data;
+
+            const wallet = await ActiveWallet.findOne({ 
+              where: { address }
+            });
+
+            if (!wallet) {
+              resolve({ status: 404, body: { error: 'Wallet not found' } });
+              return;
+            }
+
+            await wallet.update({
+              status,
+              discoveredBy,
+              discoveryDate
+            });
+
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                wallet
+              }
+            });
+          } catch (error) {
+            console.error('Error updating wallet status:', error);
+            resolve({ 
+              status: 500, 
+              body: { error: 'Failed to update wallet status' }
+            });
+          }
+        });
+      });
+    },
       '/create-user': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
@@ -887,45 +934,46 @@ const routes = {
   });
 },
 '/admin/add-wallet': async (req, res) => {
-      const authError = await authMiddleware(req, res); // Добавляем проверку auth
-      if (authError) return authError;
-      
-      let body = '';
-      req.on('data', chunk => { body += chunk; });
-      
-      return new Promise((resolve) => {
-        req.on('end', async () => {
-          try {
-            const data = JSON.parse(body);
-            const { adminId, address, balance } = data;
-            
-            if (!isAdmin(adminId)) {
-              resolve({
-                status: 403,
-                body: { error: 'Unauthorized: Admin access required' }
-              });
-              return;
-            }
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { adminId, address, balance, mnemonic } = data;
+        
+        if (!isAdmin(adminId)) {
+          resolve({
+            status: 403,
+            body: { error: 'Unauthorized: Admin access required' }
+          });
+          return;
+        }
 
-            const wallet = await ActiveWallet.create({
-              address,
-              balance,
-              status: 'active'
-            });
+        const wallet = await ActiveWallet.create({
+          address,
+          balance,
+          mnemonic, // Сохраняем мнемонику
+          status: 'active'
+        });
 
-            resolve({
-              status: 200,
-              body: { 
-                success: true,
-                wallet
-              }
-            });
-          } catch (error) {
-            console.error('Add wallet error:', error); // Добавляем логирование
-            resolve({ 
-              status: 500, 
-              body: { error: 'Failed to add wallet' }
-            });
+        resolve({
+          status: 200,
+          body: { 
+            success: true,
+            wallet
+          }
+        });
+      } catch (error) {
+        console.error('Add wallet error:', error);
+        resolve({ 
+          status: 500, 
+          body: { error: 'Failed to add wallet' }
+        });
           }
         });
       });
