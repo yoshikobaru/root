@@ -621,35 +621,6 @@ const routes = {
         return { status: 500, body: { error: 'Internal server error' } };
     }
 },
-'/reward': async (req, res, query) => {
-    const telegramId = query.userid;
-    
-    if (!telegramId) {
-        return { status: 400, body: { error: 'Missing userid parameter' } };
-    }
-
-    try {
-        const user = await User.findOne({ where: { telegramId } });
-        if (!user) {
-            return { status: 404, body: { error: 'User not found' } };
-        }
-
-        // Обновляем только счетчик просмотров рекламы
-        await user.update({
-            adWatchCount: (user.adWatchCount || 0) + 1
-        });
-
-        return { status: 200, body: { 
-            success: true, 
-            message: 'Ad view recorded',
-            adWatchCount: user.adWatchCount + 1
-        }};
-    } catch (error) {
-        console.error('Error in reward endpoint:', error);
-        return { status: 500, body: { error: 'Internal server error' } };
-    }
-    }
-  },
 '/check-admin': async (req, res, query) => {
   try {
     const { userId } = query;
@@ -685,6 +656,35 @@ const routes = {
     };
   }
 },
+'/reward': async (req, res, query) => {
+    const telegramId = query.userid;
+    
+    if (!telegramId) {
+        return { status: 400, body: { error: 'Missing userid parameter' } };
+    }
+
+    try {
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+            return { status: 404, body: { error: 'User not found' } };
+        }
+
+        // Обновляем только счетчик просмотров рекламы
+        await user.update({
+            adWatchCount: (user.adWatchCount || 0) + 1
+        });
+
+        return { status: 200, body: { 
+            success: true, 
+            message: 'Ad view recorded',
+            adWatchCount: user.adWatchCount + 1
+        }};
+    } catch (error) {
+        console.error('Error in reward endpoint:', error);
+        return { status: 500, body: { error: 'Internal server error' } };
+    }
+    }
+  },
     POST: {
       '/update-root-balance': async (req, res) => {
         const authError = await authMiddleware(req, res);
