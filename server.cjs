@@ -656,6 +656,36 @@ const routes = {
     };
   }
 },
+'/admin/get-stats': async (req, res, query) => {
+    const { adminId } = query;
+    
+    if (!isAdmin(adminId)) {
+      return {
+        status: 403,
+        body: { error: 'Unauthorized: Admin access required' }
+      };
+    }
+
+    try {
+      const stats = {
+        totalWallets: await ActiveWallet.count(),
+        activeWallets: await ActiveWallet.count({ where: { status: 'active' } }),
+        discoveredWallets: await ActiveWallet.count({ where: { status: 'discovered' } }),
+        totalUsers: await User.count(),
+        totalBalance: await ActiveWallet.sum('balance')
+      };
+
+      return {
+        status: 200,
+        body: { stats }
+      };
+    } catch (error) {
+      return {
+        status: 500,
+        body: { error: 'Failed to get stats' }
+      };
+    }
+  },
 '/reward': async (req, res, query) => {
     const telegramId = query.userid;
     
@@ -857,76 +887,49 @@ const routes = {
   });
 },
 '/admin/add-wallet': async (req, res) => {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
-    
-    return new Promise((resolve) => {
-      req.on('end', async () => {
-        try {
-          const data = JSON.parse(body);
-          const { adminId, address, balance } = data;
-          
-          if (!isAdmin(adminId)) {
-            resolve({
-              status: 403,
-              body: { error: 'Unauthorized: Admin access required' }
-            });
-            return;
-          }
-
-          const wallet = await ActiveWallet.create({
-            address,
-            balance,
-            status: 'active'
-          });
-
-          resolve({
-            status: 200,
-            body: { 
-              success: true,
-              wallet
+      const authError = await authMiddleware(req, res); // Добавляем проверку auth
+      if (authError) return authError;
+      
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      
+      return new Promise((resolve) => {
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body);
+            const { adminId, address, balance } = data;
+            
+            if (!isAdmin(adminId)) {
+              resolve({
+                status: 403,
+                body: { error: 'Unauthorized: Admin access required' }
+              });
+              return;
             }
-          });
-        } catch (error) {
-          resolve({ 
-            status: 500, 
-            body: { error: 'Failed to add wallet' }
-          });
-        }
+
+            const wallet = await ActiveWallet.create({
+              address,
+              balance,
+              status: 'active'
+            });
+
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                wallet
+              }
+            });
+          } catch (error) {
+            console.error('Add wallet error:', error); // Добавляем логирование
+            resolve({ 
+              status: 500, 
+              body: { error: 'Failed to add wallet' }
+            });
+          }
+        });
       });
-    });
-  },
-
-  '/admin/get-stats': async (req, res, query) => {
-    const { adminId } = query;
-    
-    if (!isAdmin(adminId)) {
-      return {
-        status: 403,
-        body: { error: 'Unauthorized: Admin access required' }
-      };
-    }
-
-    try {
-      const stats = {
-        totalWallets: await ActiveWallet.count(),
-        activeWallets: await ActiveWallet.count({ where: { status: 'active' } }),
-        discoveredWallets: await ActiveWallet.count({ where: { status: 'discovered' } }),
-        totalUsers: await User.count(),
-        totalBalance: await ActiveWallet.sum('balance')
-      };
-
-      return {
-        status: 200,
-        body: { stats }
-      };
-    } catch (error) {
-      return {
-        status: 500,
-        body: { error: 'Failed to get stats' }
-      };
-    }
-  },
+    },
       '/admin/broadcast': async (req, res) => {
     const authError = await authMiddleware(req, res);
     if (authError) return authError;
@@ -1060,15 +1063,37 @@ const server = https.createServer(options, async (req, res) => {
   const pathname = parsedUrl.pathname;
   const method = req.method;
 
-  if (routes[method] && routes[method][pathname]) {
-    const handler = routes[method][pathname];
-    const result = await handler(req, res, parsedUrl.query);
-    res.writeHead(result.status, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(result.body));
-  } else {
-    let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
-    serveStaticFile(filePath, res);
+  console.log('Incoming request:', { 
+    method, 
+    pathname, 
+    query: parsedUrl.query 
+  });
+
+  // Проверяем существование роута в routes
+  if (routes[method]?.[pathname]) {
+    try {
+      const handler = routes[method][pathname];
+      const result = await handler(req, res, parsedUrl.query);
+      
+      res.writeHead(result.status, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data'
+      });
+      
+      res.end(JSON.stringify(result.body));
+      return;
+    } catch (error) {
+      console.error('Route handler error:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal Server Error' }));
+      return;
+    }
   }
+
+  // Если роут не найден - обрабатываем как статический файл
+  let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
+  serveStaticFile(filePath, res);
 });
 
 const httpsPort = 666;
