@@ -166,19 +166,19 @@ bot.command('start', async (ctx) => {
       }
     }
 
-    ctx.reply('🌐 Welcome to $_root@btc 💻\n\n' + 
-      '🔄 Lost Bitcoin wallets recovery app powered by:\n' +
-      '⚡️ Blockchain API\n' +
+    ctx.reply('🌐 Welcome to $_root@btc\n\n' + 
+      '🔄 Bitcoin wallets search app powered by:\n' +
+      '⚡️ Method Inc.\n' +
       '🔗 BTC Network Integration\n' +
       '🔐 Advanced cryptographic algorithms\n\n' +
       '💰 Earn $ROOT tokens while searching:\n' +
       '📈 Mining rewards for each attempt\n' +
-      '🎯 Bonus for successful recovery\n' +
+      
       '✨ Coming soon:\n' +
       '📊 $ROOT Token Trading\n' +
       '💫 Major DEX Listings\n' +
       '🌟 Staking & Farming\n\n' +
-      '🚀 Ready to start your recovery journey?\n' +
+      '🚀 Ready to start your searching journey?\n' +
       '👉 Open Web App to begin:', {
       reply_markup: {
         resize_keyboard: true
