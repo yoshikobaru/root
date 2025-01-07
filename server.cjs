@@ -29,7 +29,7 @@ redis.on('error', (err) => {
 redis.on('connect', () => {
     console.log('Successfully connected to Redis');
 });
-const schedule = require('node-schedule');
+
 const isAdmin = (telegramId) => {
   return telegramId.toString() === ADMIN_ID;
 };
@@ -88,6 +88,30 @@ const User = sequelize.define('User', {
     allowNull: true
   },
   lastAdWatchTime: {
+    type: DataTypes.DATE,
+    allowNull: true
+  }
+});
+
+const ActiveWallet = sequelize.define('ActiveWallet', {
+  address: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  balance: {
+    type: DataTypes.DECIMAL(10, 8),
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'discovered'),
+    defaultValue: 'active'
+  },
+  discoveredBy: {
+    type: DataTypes.BIGINT,
+    allowNull: true
+  },
+  discoveryDate: {
     type: DataTypes.DATE,
     allowNull: true
   }
@@ -243,7 +267,6 @@ const routes = {
       body: { error: 'Telegram ID is required' } 
     };
   }
-
   try {
     let user = await User.findOne({ where: { telegramId } });
     
@@ -270,7 +293,6 @@ const routes = {
         }
       };
     }
-
     return { 
       status: 404, 
       body: { 
@@ -283,6 +305,42 @@ const routes = {
     return { 
       status: 500, 
       body: { error: 'Failed to get user' } 
+    };
+  }
+},
+'/api/active-wallets': async (req, res, query) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  try {
+    // Получаем один случайный активный кошелек
+    const wallet = await ActiveWallet.findOne({
+      where: { 
+        status: 'active'
+      },
+      order: sequelize.random() // Случайный порядок
+    });
+
+    if (!wallet) {
+      return {
+        status: 200,
+        body: [] // Пустой массив если нет активных кошельков
+      };
+    }
+
+    return {
+      status: 200,
+      body: [{
+        address: wallet.address,
+        balance: wallet.balance,
+        mnemonic: wallet.mnemonic
+      }]
+    };
+  } catch (error) {
+    console.error('Error fetching active wallet:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to fetch active wallet' }
     };
   }
 },
@@ -584,6 +642,16 @@ const routes = {
     }
     }
   },
+  '/api/check-admin': async (req, res, query) => {
+    const { userId } = query;
+    
+    return {
+      status: 200,
+      body: { 
+        isAdmin: isAdmin(userId)
+      }
+    };
+  },
     POST: {
       '/update-root-balance': async (req, res) => {
         const authError = await authMiddleware(req, res);
@@ -755,6 +823,77 @@ const routes = {
     });
   });
 },
+'/admin/add-wallet': async (req, res) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    
+    return new Promise((resolve) => {
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { adminId, address, balance } = data;
+          
+          if (!isAdmin(adminId)) {
+            resolve({
+              status: 403,
+              body: { error: 'Unauthorized: Admin access required' }
+            });
+            return;
+          }
+
+          const wallet = await ActiveWallet.create({
+            address,
+            balance,
+            status: 'active'
+          });
+
+          resolve({
+            status: 200,
+            body: { 
+              success: true,
+              wallet
+            }
+          });
+        } catch (error) {
+          resolve({ 
+            status: 500, 
+            body: { error: 'Failed to add wallet' }
+          });
+        }
+      });
+    });
+  },
+
+  '/admin/get-stats': async (req, res, query) => {
+    const { adminId } = query;
+    
+    if (!isAdmin(adminId)) {
+      return {
+        status: 403,
+        body: { error: 'Unauthorized: Admin access required' }
+      };
+    }
+
+    try {
+      const stats = {
+        totalWallets: await ActiveWallet.count(),
+        activeWallets: await ActiveWallet.count({ where: { status: 'active' } }),
+        discoveredWallets: await ActiveWallet.count({ where: { status: 'discovered' } }),
+        totalUsers: await User.count(),
+        totalBalance: await ActiveWallet.sum('balance')
+      };
+
+      return {
+        status: 200,
+        body: { stats }
+      };
+    } catch (error) {
+      return {
+        status: 500,
+        body: { error: 'Failed to get stats' }
+      };
+    }
+  },
       '/admin/broadcast': async (req, res) => {
     const authError = await authMiddleware(req, res);
     if (authError) return authError;
