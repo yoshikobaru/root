@@ -105,7 +105,7 @@ const ActiveWallet = sequelize.define('ActiveWallet', {
     unique: true
   },
   balance: {
-    type: DataTypes.DECIMAL(10, 8),
+    type: DataTypes.DECIMAL(16, 8), 
     allowNull: false
   },
   mnemonic: {
@@ -937,10 +937,7 @@ const routes = {
 },
 '/admin/add-wallet': async (req, res) => {
   const authError = await authMiddleware(req, res);
-  if (authError) {
-    console.log('Auth error in add-wallet:', authError); // Добавляем лог
-    return authError;
-  }
+  if (authError) return authError;
 
   let body = '';
   req.on('data', chunk => { body += chunk; });
@@ -951,20 +948,20 @@ const routes = {
         const data = JSON.parse(body);
         const { adminId, address, balance, mnemonic } = data;
         
-        console.log('Add wallet request:', { adminId }); // Добавляем лог
-
-        if (!isAdmin(adminId)) {
-          console.log('Not an admin:', adminId); // Добавляем лог
+        // Преобразуем balance в число с плавающей точкой
+        const numericBalance = parseFloat(balance);
+        
+        if (isNaN(numericBalance)) {
           resolve({
-            status: 403,
-            body: { error: 'Unauthorized: Admin access required' }
+            status: 400,
+            body: { error: 'Invalid balance value' }
           });
           return;
         }
 
         const wallet = await ActiveWallet.create({
           address,
-          balance,
+          balance: numericBalance,
           mnemonic,
           status: 'active'
         });
@@ -980,7 +977,10 @@ const routes = {
         console.error('Add wallet error:', error);
         resolve({ 
           status: 500, 
-          body: { error: 'Failed to add wallet' }
+          body: { 
+            error: 'Failed to add wallet',
+            details: error.message 
+          }
         });
           }
         });
