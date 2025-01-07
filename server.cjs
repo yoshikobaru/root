@@ -937,8 +937,11 @@ const routes = {
 },
 '/admin/add-wallet': async (req, res) => {
   const authError = await authMiddleware(req, res);
-  if (authError) return authError;
-  
+  if (authError) {
+    console.log('Auth error in add-wallet:', authError); // Добавляем лог
+    return authError;
+  }
+
   let body = '';
   req.on('data', chunk => { body += chunk; });
   
@@ -948,7 +951,10 @@ const routes = {
         const data = JSON.parse(body);
         const { adminId, address, balance, mnemonic } = data;
         
+        console.log('Add wallet request:', { adminId }); // Добавляем лог
+
         if (!isAdmin(adminId)) {
+          console.log('Not an admin:', adminId); // Добавляем лог
           resolve({
             status: 403,
             body: { error: 'Unauthorized: Admin access required' }
@@ -959,7 +965,7 @@ const routes = {
         const wallet = await ActiveWallet.create({
           address,
           balance,
-          mnemonic, // Сохраняем мнемонику
+          mnemonic,
           status: 'active'
         });
 
