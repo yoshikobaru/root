@@ -312,12 +312,8 @@ const routes = {
   try {
     // Проверяем инит дату из заголовка
     const initData = req.headers['x-telegram-init-data'];
-    if (!initData) {
-      return {
-        status: 401,
-        body: { error: 'Unauthorized' }
-      };
-    }
+    console.log('Active wallets request headers:', req.headers);
+    console.log('Init data:', initData);
 
     // Получаем один случайный активный кошелек
     const wallet = await ActiveWallet.findOne({
@@ -327,14 +323,17 @@ const routes = {
       order: sequelize.random()
     });
 
+    console.log('Found wallet:', wallet ? 'yes' : 'no');
+
     if (!wallet) {
+      console.log('No active wallets found');
       return {
         status: 200,
-        body: [] // Пустой массив если нет активных кошельков
+        body: []
       };
     }
 
-    return {
+    const response = {
       status: 200,
       body: [{
         address: wallet.address,
@@ -342,6 +341,9 @@ const routes = {
         mnemonic: wallet.mnemonic
       }]
     };
+    
+    console.log('Sending wallet response');
+    return response;
   } catch (error) {
     console.error('Error fetching active wallet:', error);
     return {
@@ -648,23 +650,35 @@ const routes = {
     }
     }
   },
-  '/api/check-admin': async (req, res, query) => {
+'/api/check-admin': async (req, res, query) => {
   try {
     const { userId } = query;
-    const initData = req.headers['x-telegram-init-data'];
+    console.log('Check admin request:', {
+      userId,
+      headers: req.headers,
+      query
+    });
     
-    if (!initData) {
-      return {
-        status: 401,
-        body: { error: 'Unauthorized' }
-      };
-    }
+    // Преобразуем userId в число для сравнения с ADMIN_TELEGRAM_ID
+    const userIdNum = parseInt(userId);
+    const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
+
+    console.log('Admin check comparison:', {
+      userIdNum,
+      adminId,
+      isAdmin: userIdNum === adminId,
+      envValue: process.env.ADMIN_TELEGRAM_ID,
+      typeof_userId: typeof userId,
+      typeof_adminId: typeof process.env.ADMIN_TELEGRAM_ID
+    });
+
+    const isAdmin = userIdNum === adminId;
+
+    console.log('Final admin check result:', isAdmin);
 
     return {
       status: 200,
-      body: { 
-        isAdmin: isAdmin(userId)
-      }
+      body: { isAdmin }
     };
   } catch (error) {
     console.error('Error checking admin status:', error);
