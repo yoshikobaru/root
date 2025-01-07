@@ -653,35 +653,32 @@ const routes = {
 '/api/check-admin': async (req, res, query) => {
   try {
     const { userId } = query;
-    console.log('Check admin request:', {
+    console.log('Check admin request received:', {
       userId,
-      headers: req.headers,
-      query
+      query,
+      headers: req.headers
     });
     
-    // Преобразуем userId в число для сравнения с ADMIN_TELEGRAM_ID
     const userIdNum = parseInt(userId);
     const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
 
-    console.log('Admin check comparison:', {
+    console.log('Admin check details:', {
       userIdNum,
       adminId,
-      isAdmin: userIdNum === adminId,
-      envValue: process.env.ADMIN_TELEGRAM_ID,
-      typeof_userId: typeof userId,
-      typeof_adminId: typeof process.env.ADMIN_TELEGRAM_ID
+      envAdminId: process.env.ADMIN_TELEGRAM_ID,
+      isMatch: userIdNum === adminId
     });
 
     const isAdmin = userIdNum === adminId;
 
-    console.log('Final admin check result:', isAdmin);
+    console.log('Sending admin check response:', { isAdmin });
 
     return {
       status: 200,
       body: { isAdmin }
     };
   } catch (error) {
-    console.error('Error checking admin status:', error);
+    console.error('Admin check error:', error);
     return {
       status: 500,
       body: { error: 'Internal Server Error' }
