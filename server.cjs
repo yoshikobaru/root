@@ -94,6 +94,11 @@ const User = sequelize.define('User', {
 });
 
 const ActiveWallet = sequelize.define('ActiveWallet', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   address: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -102,6 +107,10 @@ const ActiveWallet = sequelize.define('ActiveWallet', {
   balance: {
     type: DataTypes.DECIMAL(10, 8),
     allowNull: false
+  },
+  mnemonic: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   status: {
     type: DataTypes.ENUM('active', 'discovered'),
@@ -115,6 +124,8 @@ const ActiveWallet = sequelize.define('ActiveWallet', {
     type: DataTypes.DATE,
     allowNull: true
   }
+}, {
+  tableName: 'ActiveWallets' // Явно указываем имя таблицы
 });
 
 // Синхронизируем модель с базой данных
