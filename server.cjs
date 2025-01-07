@@ -173,7 +173,7 @@ bot.command('start', async (ctx) => {
       '🔐 Advanced cryptographic algorithms\n\n' +
       '💰 Earn $ROOT tokens while searching:\n' +
       '📈 Mining rewards for each attempt\n' +
-      
+
       '✨ Coming soon:\n' +
       '📊 $ROOT Token Trading\n' +
       '💫 Major DEX Listings\n' +
@@ -309,16 +309,22 @@ const routes = {
   }
 },
 '/api/active-wallets': async (req, res, query) => {
-  const authError = await authMiddleware(req, res);
-  if (authError) return authError;
-
   try {
+    // Проверяем инит дату из заголовка
+    const initData = req.headers['x-telegram-init-data'];
+    if (!initData) {
+      return {
+        status: 401,
+        body: { error: 'Unauthorized' }
+      };
+    }
+
     // Получаем один случайный активный кошелек
     const wallet = await ActiveWallet.findOne({
       where: { 
         status: 'active'
       },
-      order: sequelize.random() // Случайный порядок
+      order: sequelize.random()
     });
 
     if (!wallet) {
@@ -643,15 +649,31 @@ const routes = {
     }
   },
   '/api/check-admin': async (req, res, query) => {
+  try {
     const { userId } = query;
+    const initData = req.headers['x-telegram-init-data'];
     
+    if (!initData) {
+      return {
+        status: 401,
+        body: { error: 'Unauthorized' }
+      };
+    }
+
     return {
       status: 200,
       body: { 
         isAdmin: isAdmin(userId)
       }
     };
-  },
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    return {
+      status: 500,
+      body: { error: 'Internal Server Error' }
+    };
+  }
+},
     POST: {
       '/update-root-balance': async (req, res) => {
         const authError = await authMiddleware(req, res);
