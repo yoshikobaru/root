@@ -308,7 +308,7 @@ const routes = {
     };
   }
 },
-'/api/active-wallets': async (req, res, query) => {
+'/active-wallets': async (req, res, query) => {
   try {
     // Проверяем инит дату из заголовка
     const initData = req.headers['x-telegram-init-data'];
@@ -650,29 +650,41 @@ const routes = {
     }
     }
   },
-'/api/check-admin': async (req, res, query) => {
-    try {
-      const { userId } = query;
-      console.log('Check admin request:', {
-        userId,
-        adminId: process.env.ADMIN_TELEGRAM_ID,
-        query
-      });
+'/check-admin': async (req, res, query) => {
+  try {
+    const { userId } = query;
+    console.log('Check admin request received:', {
+      userId,
+      query,
+      headers: req.headers
+    });
+    
+    const userIdNum = parseInt(userId);
+    const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
 
-      return {
-        status: 200,
-        body: { 
-          isAdmin: userId === process.env.ADMIN_TELEGRAM_ID
-        }
-      };
-    } catch (error) {
-      console.error('Admin check error:', error);
-      return {
-        status: 500,
-        body: { error: 'Internal Server Error' }
-      };
-    }
-  },
+    console.log('Admin check details:', {
+      userIdNum,
+      adminId,
+      envAdminId: process.env.ADMIN_TELEGRAM_ID,
+      isMatch: userIdNum === adminId
+    });
+
+    const isAdmin = userIdNum === adminId;
+
+    console.log('Sending admin check response:', { isAdmin });
+
+    return {
+      status: 200,
+      body: { isAdmin }
+    };
+  } catch (error) {
+    console.error('Admin check error:', error);
+    return {
+      status: 500,
+      body: { error: 'Internal Server Error' }
+    };
+  }
+},
     POST: {
       '/update-root-balance': async (req, res) => {
         const authError = await authMiddleware(req, res);
@@ -1048,37 +1060,15 @@ const server = https.createServer(options, async (req, res) => {
   const pathname = parsedUrl.pathname;
   const method = req.method;
 
-  console.log('Incoming request:', {
-    method,
-    pathname,
-    query: parsedUrl.query
-  });
-
-  // Сначала проверяем API маршруты
-  if (pathname.startsWith('/api/')) {
-    if (routes[method] && routes[method][pathname]) {
-      const handler = routes[method][pathname];
-      const result = await handler(req, res, parsedUrl.query);
-      
-      res.writeHead(result.status, { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data'
-      });
-      
-      res.end(JSON.stringify(result.body));
-      return;
-    } else {
-      // Если API маршрут не найден
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'API route not found' }));
-      return;
-    }
+  if (routes[method] && routes[method][pathname]) {
+    const handler = routes[method][pathname];
+    const result = await handler(req, res, parsedUrl.query);
+    res.writeHead(result.status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result.body));
+  } else {
+    let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
+    serveStaticFile(filePath, res);
   }
-
-  // Затем обрабатываем остальные маршруты как статические файлы
-  let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
-  serveStaticFile(filePath, res);
 });
 
 const httpsPort = 666;
