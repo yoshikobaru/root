@@ -321,47 +321,38 @@ const routes = {
 },
 '/active-wallets': async (req, res, query) => {
   try {
-    // Проверяем инит дату из заголовка
-    const initData = req.headers['x-telegram-init-data'];
-    console.log('Active wallets request headers:', req.headers);
-    console.log('Init data:', initData);
-
-    // Получаем один случайный активный кошелек
+    console.log('Fetching active wallets...');
+    
     const wallet = await ActiveWallet.findOne({
       where: { 
         status: 'active'
       },
-      attributes: ['id', 'address', 'balance', 'mnemonic', 'status'], // Добавляем мнемонику
+      attributes: ['id', 'address', 'balance', 'mnemonic', 'status'],
       order: sequelize.random()
     });
 
-    console.log('Found wallet:', wallet ? 'yes' : 'no');
+    console.log('Found wallet:', wallet);
 
+    // Возвращаем пустой массив, если кошельков нет
     if (!wallet) {
-      console.log('No active wallets found');
       return { 
-        status: 404, 
-        body: { error: 'No active wallets available' }
+        status: 200, // Меняем на 200, так как это нормальная ситуация
+        body: { 
+          wallets: [], // Возвращаем пустой массив
+          message: 'No active wallets available'
+        }
       };
     }
 
     return { 
       status: 200, 
-      body: { 
-        wallet: {
-          id: wallet.id,
-          address: wallet.address,
-          balance: wallet.balance,
-          mnemonic: wallet.mnemonic, // Передаем мнемонику
-          status: wallet.status
-        }
-      }
+      body: { wallet }
     };
   } catch (error) {
     console.error('Error getting active wallet:', error);
     return { 
       status: 500, 
-      body: { error: 'Failed to get active wallet' }
+      body: { error: 'Failed to get active wallet', details: error.message }
     };
   }
 },
