@@ -220,7 +220,10 @@ bot.on('pre_checkout_query', async (ctx) => {
 bot.on('successful_payment', async (ctx) => {
   try {
     const payment = ctx.message.successful_payment;
+    console.log('Payment received:', payment); // Добавим логирование
+
     const [type, telegramId, itemId] = payment.invoice_payload.split('_');
+    console.log('Parsed payment:', { type, telegramId, itemId }); // Логируем разобранные данные
 
     const user = await User.findOne({ where: { telegramId } });
     if (!user) {
@@ -228,19 +231,17 @@ bot.on('successful_payment', async (ctx) => {
       return;
     }
 
-    if (type === 'mode') {
-      const updatedModes = [...new Set([...user.purchasedModes, itemId])];
-      await user.update({ purchasedModes: updatedModes });
-      await ctx.reply('✨ Mode upgraded successfully! You can now use the new mode.');
-    } 
-    else if (type === 'energy') {
+    if (type === 'energy') {
       if (itemId === 'energy_full') {
-        // Просто отправляем сообщение, энергия восстановится на клиенте
         await ctx.reply('⚡️ Energy restored to 100%!');
-      } else {
+      } else if (itemId.startsWith('capacity')) {
         const amount = parseInt(itemId.split('_')[1]);
-        const newMaxEnergy = user.maxEnergy + amount;
+        console.log('Updating maxEnergy:', { current: user.maxEnergy, amount }); // Логируем обновление
+        
+        const newMaxEnergy = (user.maxEnergy || 100) + amount;
         await user.update({ maxEnergy: newMaxEnergy });
+        
+        console.log('MaxEnergy updated:', newMaxEnergy); // Подтверждаем обновление
         await ctx.reply(`🔋 Energy capacity increased by ${amount}%!`);
       }
     }
