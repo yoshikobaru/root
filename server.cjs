@@ -221,7 +221,10 @@ bot.on('successful_payment', async (ctx) => {
   try {
     console.log('=== PAYMENT HANDLER TRIGGERED ===');
     const payment = ctx.message.successful_payment;
+    console.log('Payment data:', payment);
+
     const [type, telegramId, itemId] = payment.invoice_payload.split('_');
+    console.log('Parsed payment:', { type, telegramId, itemId });
 
     const user = await User.findOne({ where: { telegramId } });
     if (!user) {
@@ -232,15 +235,25 @@ bot.on('successful_payment', async (ctx) => {
     if (type === 'energy') {
       if (itemId === 'energy_full') {
         await ctx.reply('⚡️ Energy restored to 100%!');
-      } else if (itemId.startsWith('capacity')) {
+      } else {
+        // Получаем число прямо из itemId (50, 100, 250)
         const amount = parseInt(itemId.split('_')[1]);
-        const newMaxEnergy = (user.maxEnergy || 100) + amount;
+        const currentMaxEnergy = user.maxEnergy || 100;
+        const newMaxEnergy = currentMaxEnergy + amount;
+        
         await user.update({ maxEnergy: newMaxEnergy });
-        await ctx.reply(`🔋 Energy capacity increased by ${amount}%!`);
+        await ctx.reply(`🔋 Energy capacity increased by ${amount}%! New capacity: ${newMaxEnergy}%`);
       }
+    } else if (type === 'mode') {
+      const updatedModes = [...new Set([...user.purchasedModes, itemId])];
+      await user.update({ purchasedModes: updatedModes });
+      
+      const modeName = itemId.charAt(0).toUpperCase() + itemId.slice(1);
+      await ctx.reply(`✨ ${modeName} mode unlocked successfully!`);
     }
   } catch (error) {
     console.error('Error in successful_payment:', error);
+    console.error('Full error:', error.stack);
   }
 });
 
