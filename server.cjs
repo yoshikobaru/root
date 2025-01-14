@@ -74,6 +74,10 @@ const User = sequelize.define('User', {
     type: DataTypes.DECIMAL(10, 2), // для хранения значений с 2 знаками после запятой
     defaultValue: 0
   },
+  maxEnergy: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100
+  },
   purchasedModes: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     defaultValue: [], 
@@ -216,20 +220,29 @@ bot.on('pre_checkout_query', async (ctx) => {
 bot.on('successful_payment', async (ctx) => {
   try {
     const payment = ctx.message.successful_payment;
-    const [type, telegramId, modeName] = payment.invoice_payload.split('_');
+    const [type, telegramId, itemId] = payment.invoice_payload.split('_');
+
+    const user = await User.findOne({ where: { telegramId } });
+    if (!user) {
+      console.error('User not found:', telegramId);
+      return;
+    }
 
     if (type === 'mode') {
-      const user = await User.findOne({ where: { telegramId } });
-      if (!user) {
-        console.error('User not found:', telegramId);
-        return;
-      }
-
-      // Добавляем новый режим
-      const updatedModes = [...new Set([...user.purchasedModes, modeName])];
+      const updatedModes = [...new Set([...user.purchasedModes, itemId])];
       await user.update({ purchasedModes: updatedModes });
-
       await ctx.reply('✨ Mode upgraded successfully! You can now use the new mode.');
+    } 
+    else if (type === 'energy') {
+      if (itemId === 'energy_full') {
+        // Просто отправляем сообщение, энергия восстановится на клиенте
+        await ctx.reply('⚡️ Energy restored to 100%!');
+      } else {
+        const amount = parseInt(itemId.split('_')[1]);
+        const newMaxEnergy = user.maxEnergy + amount;
+        await user.update({ maxEnergy: newMaxEnergy });
+        await ctx.reply(`🔋 Energy capacity increased by ${amount}%!`);
+      }
     }
   } catch (error) {
     console.error('Error in successful_payment:', error);
@@ -269,7 +282,11 @@ async function authMiddleware(req, res) {
 
 const routes = {
   GET: {
-    '/get-user': async (req, res, query) => {
+ '/get-user': async (req, res, query) => {
+  // Добавляем проверку авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   const telegramId = query.telegramId;
   
   if (!telegramId) {
@@ -278,7 +295,18 @@ const routes = {
       body: { error: 'Telegram ID is required' } 
     };
   }
+
   try {
+    // Проверяем соответствие ID пользователя из initData с запрашиваемым ID
+    const initData = new URLSearchParams(req.headers['x-telegram-init-data']);
+    const userData = JSON.parse(initData.get('user'));
+    if (userData.id.toString() !== telegramId) {
+      return { 
+        status: 403, 
+        body: { error: 'Unauthorized: User ID mismatch' } 
+      };
+    }
+
     let user = await User.findOne({ where: { telegramId } });
     
     if (user) {
@@ -320,8 +348,12 @@ const routes = {
   }
 },
 '/active-wallets': async (req, res, query) => {
+  // Добавляем проверку авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   try {
-    console.log('Fetching active wallets...');
+    console.log('Fetching wallets...');
     
     const wallet = await ActiveWallet.findOne({
       where: { 
@@ -331,19 +363,16 @@ const routes = {
       order: sequelize.random()
     });
 
-    console.log('Found wallet:', wallet);
-
     // Возвращаем пустой массив, если кошельков нет
     if (!wallet) {
       return { 
-        status: 200, // Меняем на 200, так как это нормальная ситуация
+        status: 200,
         body: { 
-          wallets: [], // Возвращаем пустой массив
+          wallets: [],
           message: 'No active wallets available'
         }
       };
     }
-
     return { 
       status: 200, 
       body: { wallet }
@@ -472,16 +501,24 @@ const routes = {
   }
 },
 '/create-mode-invoice': async (req, res, query) => {
-    const { telegramId, modeName } = query;
+    const { telegramId, type, itemId } = query;
     
-    if (!telegramId || !modeName) {
+    if (!telegramId || !type) {
         return { status: 400, body: { error: 'Missing required parameters' } };
     }
 
-    const modePrices = {
-        'basic': 100,
-        'advanced': 250,
-        'expert': 500
+    const prices = {
+        mode: {
+            'basic': 100,
+            'advanced': 250,
+            'expert': 500
+        },
+        energy: {
+            'energy_full': 1,
+            'capacity_50': 2,
+            'capacity_100': 3,
+            'capacity_250': 4
+        }
     };
 
     try {
@@ -490,29 +527,49 @@ const routes = {
             return { status: 404, body: { error: 'User not found' } };
         }
 
-        if (user.purchasedModes.includes(modeName)) {
+        // Проверка для режимов
+        if (type === 'mode' && user.purchasedModes.includes(itemId)) {
             return { status: 400, body: { error: 'Mode already purchased' } };
         }
 
+        let title, description;
+        if (type === 'mode') {
+            title = 'ROOTBTC Mode Upgrade';
+            description = `Upgrade to ${itemId.charAt(0).toUpperCase() + itemId.slice(1)} mode`;
+        } else if (type === 'energy') {
+            if (itemId === 'energy_full') {
+                title = 'Energy Refill';
+                description = 'Instant energy refill to 100%';
+            } else {
+                const amount = itemId.split('_')[1];
+                title = 'Energy Capacity Upgrade';
+                description = `Increase maximum energy by ${amount}%`;
+            }
+        }
+
         const invoice = await bot.telegram.createInvoiceLink({
-            title: 'ROOTBTC Mode Upgrade',
-            description: `Upgrade to ${modeName.charAt(0).toUpperCase() + modeName.slice(1)} mode`,
-            payload: `mode_${telegramId}_${modeName}`,
+            title,
+            description,
+            payload: `${type}_${telegramId}_${itemId}`,
             provider_token: "",
             currency: 'XTR',
             prices: [{
-                label: '⭐️ Mode Upgrade',
-                amount: parseInt(modePrices[modeName]) // Исправлено здесь
+                label: '⭐️ Purchase',
+                amount: prices[type][itemId]
             }]
         });
 
         return { status: 200, body: { slug: invoice } };
     } catch (error) {
-        console.error('Error creating mode invoice:', error);
+        console.error('Error creating invoice:', error);
         return { status: 500, body: { error: 'Failed to create invoice' } };
     }
 },
-    '/update-user-modes': async (req, res, query) => {
+'/update-user-modes': async (req, res, query) => {
+    // Добавляем проверку авторизации
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+
     const { telegramId, modeName } = query;
     
     if (!telegramId || !modeName) {
@@ -523,6 +580,13 @@ const routes = {
         const user = await User.findOne({ where: { telegramId } });
         if (!user) {
             return { status: 404, body: { error: 'User not found' } };
+        }
+
+        // Дополнительная проверка: telegramId из запроса должен совпадать с telegramId из initData
+        const initData = new URLSearchParams(req.headers['x-telegram-init-data']);
+        const userData = JSON.parse(initData.get('user'));
+        if (userData.id.toString() !== telegramId) {
+            return { status: 403, body: { error: 'Unauthorized: User ID mismatch' } };
         }
 
         const updatedModes = [...new Set([...user.purchasedModes, modeName])];
@@ -557,12 +621,13 @@ const routes = {
         return { 
             status: 200, 
             body: { 
-                purchasedModes: user.purchasedModes 
+                purchasedModes: user.purchasedModes,
+                maxEnergy: user.maxEnergy || 100
             }
         };
     } catch (error) {
-        console.error('Error getting user modes:', error);
-        return { status: 500, body: { error: 'Failed to get user modes' } };
+        console.error('Error getting user data:', error);
+        return { status: 500, body: { error: 'Failed to get user data' } };
     }
 },
     '/get-friends-leaderboard': async (req, res, query) => {
