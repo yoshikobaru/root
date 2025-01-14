@@ -219,11 +219,9 @@ bot.on('pre_checkout_query', async (ctx) => {
 // Обработка successful_payment
 bot.on('successful_payment', async (ctx) => {
   try {
+    console.log('=== PAYMENT HANDLER TRIGGERED ===');
     const payment = ctx.message.successful_payment;
-    console.log('Payment received:', payment); // Добавим логирование
-
     const [type, telegramId, itemId] = payment.invoice_payload.split('_');
-    console.log('Parsed payment:', { type, telegramId, itemId }); // Логируем разобранные данные
 
     const user = await User.findOne({ where: { telegramId } });
     if (!user) {
@@ -236,12 +234,8 @@ bot.on('successful_payment', async (ctx) => {
         await ctx.reply('⚡️ Energy restored to 100%!');
       } else if (itemId.startsWith('capacity')) {
         const amount = parseInt(itemId.split('_')[1]);
-        console.log('Updating maxEnergy:', { current: user.maxEnergy, amount }); // Логируем обновление
-        
         const newMaxEnergy = (user.maxEnergy || 100) + amount;
         await user.update({ maxEnergy: newMaxEnergy });
-        
-        console.log('MaxEnergy updated:', newMaxEnergy); // Подтверждаем обновление
         await ctx.reply(`🔋 Energy capacity increased by ${amount}%!`);
       }
     }
@@ -510,9 +504,9 @@ const routes = {
 
     const prices = {
         mode: {
-            'basic': 100,
-            'advanced': 250,
-            'expert': 500
+            'basic': 1,
+            'advanced': 2,
+            'expert': 3
         },
         energy: {
             'energy_full': 1,
