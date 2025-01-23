@@ -853,54 +853,60 @@ const routes = {
           });
         });
       },
-      '/claim-achievement': async (req, res) => {
-        const authError = await authMiddleware(req, res);
-        if (authError) return authError;
+'/claim-achievement': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+  
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { telegramId, achievementId, reward } = data;
         
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        
-        return new Promise((resolve) => {
-          req.on('end', async () => {
-            try {
-              const data = JSON.parse(body);
-              const { telegramId, achievementId, reward } = data;
-              
-              const user = await User.findOne({ where: { telegramId } });
-              if (!user) {
-                resolve({ status: 404, body: { error: 'User not found' } });
-                return;
-              }
-    
-              // Проверяем, не было ли уже получено это достижение
-              const claimedAchievements = JSON.parse(user.claimedAchievements || '[]');
-              if (claimedAchievements.includes(achievementId)) {
-                resolve({ status: 400, body: { error: 'Achievement already claimed' } });
-                return;
-              }
-    
-              // Обновляем баланс и список полученных достижений
-              const newBalance = Number(user.rootBalance) + Number(reward);
-              await user.update({ 
-                rootBalance: newBalance,
-                claimedAchievements: JSON.stringify([...claimedAchievements, achievementId])
-              });
-    
-              resolve({
-                status: 200,
-                body: { 
-                  success: true,
-                  rootBalance: newBalance,
-                  claimedAchievements: [...claimedAchievements, achievementId]
-                }
-              });
-            } catch (error) {
-              console.error('Error claiming achievement:', error);
-              resolve({ status: 500, body: { error: 'Internal server error' } });
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          resolve({ status: 404, body: { error: 'User not found' } });
+          return;
+        }
+
+        // Проверяем, не было ли уже получено это достижение
+        const claimedAchievements = JSON.parse(user.claimedAchievements || '[]');
+        if (claimedAchievements.includes(achievementId)) {
+          resolve({ 
+            status: 400, 
+            body: { 
+              error: 'Achievement already claimed',
+              claimedAchievements 
             }
           });
+          return;
+        }
+
+        // Обновляем баланс и список полученных достижений
+        const newBalance = Number((Number(user.rootBalance) + Number(reward)).toFixed(2));
+        await user.update({ 
+          rootBalance: newBalance,
+          claimedAchievements: JSON.stringify([...claimedAchievements, achievementId])
         });
-      },
+
+        resolve({
+          status: 200,
+          body: { 
+            success: true,
+            rootBalance: newBalance,
+            claimedAchievements: [...claimedAchievements, achievementId]
+          }
+        });
+      } catch (error) {
+        console.error('Error claiming achievement:', error);
+        resolve({ status: 500, body: { error: 'Internal server error' } });
+      }
+    });
+  });
+},
       '/update-wallet-status': async (req, res) => {
       const authError = await authMiddleware(req, res);
       if (authError) return authError;
