@@ -1,6 +1,5 @@
 {
     "url": "https://walletfinder.ru",
     "name": "RootBTC",
-    "iconUrl": "https://walletfinder.ru/rootlogo.png",
-    "universalUrl": "https://app.tonkeeper.com/ton-connect"
-  }
+    "iconUrl": "https://walletfinder.ru/rootlogo.png"
+}
