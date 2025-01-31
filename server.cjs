@@ -873,24 +873,53 @@ const routes = {
           return;
         }
 
+        // Проверяем валидность itemId в зависимости от типа
+        const isValidItemId = type === 'energy' ? 
+          (itemId === 'energy_full' || itemId.match(/^capacity_\d+$/)) :
+          ['basic', 'advanced', 'expert'].includes(itemId);
+
+        if (!isValidItemId) {
+          console.error(`Invalid ${type} format:`, itemId);
+          resolve({ 
+            status: 400, 
+            body: { error: `Invalid ${type} format: ${itemId}` } 
+          });
+          return;
+        }
+
         const user = await User.findOne({ where: { telegramId } });
         if (!user) {
           resolve({ status: 404, body: { error: 'User not found' } });
           return;
         }
 
+        console.log('Processing purchase for user:', {
+          telegramId,
+          type,
+          itemId,
+          currentModes: user.purchasedModes,
+          currentEnergy: user.energy,
+          currentMaxEnergy: user.maxEnergy
+        });
+
         // Проверяем тип покупки
         if (type === 'mode') {
           // Проверка что режим еще не куплен
-          if (user.purchasedModes.includes(itemId)) {
+          const currentModes = Array.isArray(user.purchasedModes) ? user.purchasedModes : [];
+          if (currentModes.includes(itemId)) {
             resolve({ status: 400, body: { error: 'Mode already purchased' } });
             return;
           }
 
-          const purchasedModes = Array.isArray(user.purchasedModes) ? [...user.purchasedModes] : [];
-          purchasedModes.push(itemId);
+          const purchasedModes = [...currentModes, itemId];
           await user.update({ purchasedModes });
           
+          console.log('Mode purchase successful:', {
+            telegramId,
+            itemId,
+            purchasedModes
+          });
+
           resolve({
             status: 200,
             body: { 
@@ -906,20 +935,27 @@ const routes = {
         }
         
         if (type === 'energy') {
+          const currentMaxEnergy = user.maxEnergy || 100;
+
           if (itemId === 'energy_full') {
-            const maxEnergy = user.maxEnergy || 100;
             await user.update({ 
-              energy: maxEnergy
+              energy: currentMaxEnergy
             });
             
+            console.log('Energy refill successful:', {
+              telegramId,
+              energy: currentMaxEnergy,
+              maxEnergy: currentMaxEnergy
+            });
+
             resolve({
               status: 200,
               body: { 
                 success: true,
                 message: 'Energy refilled to maximum',
                 user: {
-                  energy: maxEnergy,
-                  maxEnergy,
+                  energy: currentMaxEnergy,
+                  maxEnergy: currentMaxEnergy,
                   telegramId: user.telegramId
                 }
               }
@@ -937,12 +973,18 @@ const routes = {
               return;
             }
 
-            const currentMaxEnergy = user.maxEnergy || 100;
             const newMaxEnergy = currentMaxEnergy + capacityIncrease;
             
             await user.update({ 
               maxEnergy: newMaxEnergy,
               energy: newMaxEnergy
+            });
+
+            console.log('Energy capacity upgrade successful:', {
+              telegramId,
+              oldMaxEnergy: currentMaxEnergy,
+              newMaxEnergy,
+              increase: capacityIncrease
             });
 
             resolve({
