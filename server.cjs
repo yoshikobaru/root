@@ -853,6 +853,90 @@ const routes = {
           });
         });
       },
+'/purchase-with-ton': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { telegramId, type, itemId, transactionBoc } = data;
+
+        if (!telegramId || !type || !itemId || !transactionBoc) {
+          resolve({ status: 400, body: { error: 'Missing required parameters' } });
+          return;
+        }
+
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          resolve({ status: 404, body: { error: 'User not found' } });
+          return;
+        }
+
+        // Проверяем тип покупки
+        if (type === 'mode') {
+          // Добавляем режим в список купленных
+          const purchasedModes = [...user.purchasedModes];
+          if (!purchasedModes.includes(itemId)) {
+            purchasedModes.push(itemId);
+            await user.update({ purchasedModes });
+          }
+          
+          resolve({
+            status: 200,
+            body: { 
+              success: true,
+              message: 'Purchase successful',
+              user: {
+                purchasedModes
+              }
+            }
+          });
+          return;
+        }
+        
+        if (type === 'energy') {
+          if (itemId === 'energy_full') {
+            // Обновляем текущую энергию до максимума
+            await user.update({ 
+              energy: user.maxEnergy 
+            });
+          } else {
+            // Увеличиваем максимальную энергию
+            const capacityIncrease = parseInt(itemId.split('_')[1]);
+            const newMaxEnergy = user.maxEnergy + capacityIncrease;
+            await user.update({ 
+              maxEnergy: newMaxEnergy,
+              energy: newMaxEnergy // Опционально: также пополняем текущую энергию
+            });
+          }
+        }
+
+        resolve({
+          status: 200,
+          body: { 
+            success: true,
+            message: 'Purchase successful',
+            user: {
+              energy: user.energy,
+              maxEnergy: user.maxEnergy
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error processing TON purchase:', error);
+        resolve({ 
+          status: 500, 
+          body: { error: 'Failed to process purchase' } 
+        });
+      }
+    });
+  });
+},
 '/claim-achievement': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
