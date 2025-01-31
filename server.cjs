@@ -864,6 +864,8 @@ const routes = {
     req.on('end', async () => {
       try {
         const data = JSON.parse(body);
+        console.log('Received TON purchase data:', data);
+
         const { telegramId, type, itemId, transactionBoc } = data;
 
         if (!telegramId || !type || !itemId || !transactionBoc) {
@@ -879,20 +881,24 @@ const routes = {
 
         // Проверяем тип покупки
         if (type === 'mode') {
-          // Добавляем режим в список купленных
-          const purchasedModes = [...user.purchasedModes];
-          if (!purchasedModes.includes(itemId)) {
-            purchasedModes.push(itemId);
-            await user.update({ purchasedModes });
+          // Проверка что режим еще не куплен
+          if (user.purchasedModes.includes(itemId)) {
+            resolve({ status: 400, body: { error: 'Mode already purchased' } });
+            return;
           }
+
+          const purchasedModes = Array.isArray(user.purchasedModes) ? [...user.purchasedModes] : [];
+          purchasedModes.push(itemId);
+          await user.update({ purchasedModes });
           
           resolve({
             status: 200,
             body: { 
               success: true,
-              message: 'Purchase successful',
+              message: `${itemId} mode purchased successfully`,
               user: {
-                purchasedModes
+                purchasedModes,
+                telegramId: user.telegramId
               }
             }
           });
@@ -901,37 +907,73 @@ const routes = {
         
         if (type === 'energy') {
           if (itemId === 'energy_full') {
-            // Обновляем текущую энергию до максимума
+            const maxEnergy = user.maxEnergy || 100;
             await user.update({ 
-              energy: user.maxEnergy 
+              energy: maxEnergy
+            });
+            
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                message: 'Energy refilled to maximum',
+                user: {
+                  energy: maxEnergy,
+                  maxEnergy,
+                  telegramId: user.telegramId
+                }
+              }
             });
           } else {
-            // Увеличиваем максимальную энергию
-            const capacityIncrease = parseInt(itemId.split('_')[1]);
-            const newMaxEnergy = user.maxEnergy + capacityIncrease;
+            const match = itemId.match(/capacity_(\d+)/);
+            if (!match) {
+              resolve({ status: 400, body: { error: 'Invalid capacity format' } });
+              return;
+            }
+
+            const capacityIncrease = parseInt(match[1], 10);
+            if (isNaN(capacityIncrease)) {
+              resolve({ status: 400, body: { error: 'Invalid capacity value' } });
+              return;
+            }
+
+            const currentMaxEnergy = user.maxEnergy || 100;
+            const newMaxEnergy = currentMaxEnergy + capacityIncrease;
+            
             await user.update({ 
               maxEnergy: newMaxEnergy,
-              energy: newMaxEnergy // Опционально: также пополняем текущую энергию
+              energy: newMaxEnergy
+            });
+
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                message: `Energy capacity increased by ${capacityIncrease}`,
+                user: {
+                  energy: newMaxEnergy,
+                  maxEnergy: newMaxEnergy,
+                  telegramId: user.telegramId
+                }
+              }
             });
           }
+          return;
         }
 
         resolve({
-          status: 200,
-          body: { 
-            success: true,
-            message: 'Purchase successful',
-            user: {
-              energy: user.energy,
-              maxEnergy: user.maxEnergy
-            }
-          }
+          status: 400,
+          body: { error: 'Invalid purchase type' }
         });
+
       } catch (error) {
         console.error('Error processing TON purchase:', error);
         resolve({ 
           status: 500, 
-          body: { error: 'Failed to process purchase' } 
+          body: { 
+            error: 'Failed to process purchase',
+            details: error.message 
+          }
         });
       }
     });
