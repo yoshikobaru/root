@@ -1074,7 +1074,7 @@ const routes = {
         }
       });
     });
-  },
+  }, // Закрываем claim-achievement
 
   '/update-wallet-status': async (req, res) => {
     const authError = await authMiddleware(req, res);
