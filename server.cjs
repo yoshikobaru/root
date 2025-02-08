@@ -1077,32 +1077,56 @@ const routes = {
   }, // Закрываем claim-achievement
 
   '/update-wallet-status': async (req, res) => {
+    console.log('🚀 Update wallet status handler started');
+    
     const authError = await authMiddleware(req, res);
-    if (authError) return authError;
+    if (authError) {
+        console.log('❌ Auth error:', authError);
+        return authError;
+    }
+    console.log('✅ Auth passed');
 
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    req.on('data', chunk => { 
+        body += chunk;
+        console.log('📝 Receiving data chunk:', chunk.toString());
+    });
     
     return new Promise((resolve) => {
       req.on('end', async () => {
         try {
+          console.log('📦 Raw body received:', body);
+          
           const data = JSON.parse(body);
+          console.log('🔍 Parsed request data:', data);
+          
           const { address, status, discoveredBy, discoveryDate } = data;
+          console.log('📋 Extracted values:', { 
+              address, 
+              status, 
+              discoveredBy, 
+              discoveryDate 
+          });
 
+          console.log('🔎 Searching for wallet with address:', address);
           const wallet = await ActiveWallet.findOne({ 
             where: { address }
           });
+          console.log('💼 Found wallet:', wallet);
 
           if (!wallet) {
+            console.log('❌ Wallet not found for address:', address);
             resolve({ status: 404, body: { error: 'Wallet not found' } });
             return;
           }
 
+          console.log('📝 Updating wallet with new data...');
           await wallet.update({
             status,
             discoveredBy,
             discoveryDate
           });
+          console.log('✅ Wallet updated successfully');
 
           resolve({
             status: 200,
@@ -1111,16 +1135,22 @@ const routes = {
               wallet
             }
           });
+          console.log('✅ Success response sent');
+          
         } catch (error) {
-          console.error('Error updating wallet status:', error);
+          console.error('❌ Error updating wallet status:', error);
+          console.error('Error stack:', error.stack);
           resolve({ 
             status: 500, 
-            body: { error: 'Failed to update wallet status' }
+            body: { 
+              error: 'Failed to update wallet status',
+              details: error.message 
+            }
           });
         }
       });
     });
-  },
+},
   '/create-user': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
