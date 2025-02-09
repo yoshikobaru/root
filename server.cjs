@@ -8,6 +8,19 @@ require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const url = require('url');
 
+// базовое кеширование
+const STATIC_EXTENSIONS = new Set(['.js', '.css', '.wasm', '.png', '.jpg', '.gif', '.svg', '.ico']);
+
+// Функция для проверки статических запросов
+const isStaticRequest = (pathname) => {
+  const ext = path.extname(pathname).toLowerCase();
+  return STATIC_EXTENSIONS.has(ext);
+};
+
+// Функция для проверки хешированных ассетов
+const isHashedAsset = (pathname) => {
+  return pathname.startsWith('/assets/') && pathname.match(/[-_][a-zA-Z0-9]{8,}\./);
+};
 
 // Редис для уведомлений
 const ADMIN_ID = process.env.ADMIN_TELEGRAM_ID;
@@ -1448,11 +1461,14 @@ const server = https.createServer(options, async (req, res) => {
   const pathname = parsedUrl.pathname;
   const method = req.method;
 
-  console.log('Incoming request:', { 
-    method, 
-    pathname, 
-    query: parsedUrl.query 
-  });
+  // Логируем только не статические запросы
+  if (!isStaticRequest(pathname)) {
+    console.log('Incoming request:', { 
+      method, 
+      pathname, 
+      query: parsedUrl.query 
+    });
+  }
 
   // Проверяем существование роута в routes
   if (routes[method]?.[pathname]) {
@@ -1476,8 +1492,26 @@ const server = https.createServer(options, async (req, res) => {
     }
   }
 
-  // Если роут не найден - обрабатываем как статический файл
-  let filePath = path.join(__dirname, 'dist', req.url === '/' ? 'index.html' : req.url);
+  // Обработка статических файлов
+  if (isStaticRequest(pathname)) {
+    let filePath = path.join(__dirname, 'dist', pathname);
+    
+    // Кешируем только хешированные ассеты
+    if (isHashedAsset(pathname)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+    
+    serveStaticFile(filePath, res);
+    return;
+  }
+
+  // Если не статический файл и не API route, возвращаем index.html
+  let filePath = path.join(__dirname, 'dist', 'index.html');
+  res.setHeader('Cache-Control', 'no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
   serveStaticFile(filePath, res);
 });
 
