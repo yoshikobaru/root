@@ -8,13 +8,25 @@ require('dotenv').config();
 const { Sequelize, DataTypes } = require('sequelize');
 const url = require('url');
 
-// базовое кеширование
-const STATIC_EXTENSIONS = new Set(['.js', '.css', '.wasm', '.png', '.jpg', '.gif', '.svg', '.ico']);
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm'
+};
 
 // Функция для проверки статических запросов
 const isStaticRequest = (pathname) => {
   const ext = path.extname(pathname).toLowerCase();
-  return STATIC_EXTENSIONS.has(ext);
+  return MIME_TYPES[ext] !== undefined;
 };
 
 // Функция для проверки хешированных ассетов
@@ -1535,6 +1547,9 @@ const serveStaticFile = (filePath, res) => {
     '.jpg': 'image/jpg',
     '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',     
+    '.wasm': 'application/wasm' 
   }[extname] || 'application/octet-stream';
 
   fs.readFile(filePath, (error, content) => {
@@ -1616,7 +1631,7 @@ const server = https.createServer(options, async (req, res) => {
     
     serveStaticFile(filePath, res);
     return;
-  }
+}
 
   // Если не статический файл и не API route, возвращаем index.html
   let filePath = path.join(__dirname, 'dist', 'index.html');
