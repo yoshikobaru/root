@@ -559,15 +559,15 @@ const routes = {
 
     const prices = {
         mode: {
-            'basic': 1,
-            'advanced': 2,
-            'expert': 3
+            'basic': 99,
+            'advanced': 149,
+            'expert': 249
         },
         energy: {
-            'energy_full': 1,
-            'capacity_50': 2,
-            'capacity_100': 3,
-            'capacity_250': 4
+            'energy_full': 25,
+            'capacity_50': 99,
+            'capacity_100': 149,
+            'capacity_250': 249
         }
     };
 
