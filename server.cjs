@@ -330,6 +330,22 @@ async function authMiddleware(req, res) {
   return null;
 }
 
+const getRequestBody = (req) => {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+};
+
 const routes = {
   GET: {
  '/get-user': async (req, res, query) => {
@@ -435,7 +451,11 @@ const routes = {
     };
   }
 },
-    '/get-root-balance': async (req, res, query) => {
+'/get-root-balance': async (req, res, query) => {
+      // Добавляем проверку авторизации
+      const authError = await authMiddleware(req, res);
+      if (authError) return authError;
+
       const telegramId = query.telegramId;
       
       if (!telegramId) {
@@ -505,7 +525,11 @@ const routes = {
         return { status: 500, body: { error: 'Internal server error' } };
       }
     },
-    '/get-referral-count': async (req, res, query) => {
+'/get-referral-count': async (req, res, query) => {
+  // Добавляем проверку авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   const telegramId = query.telegramId;
   
   if (!telegramId) {
@@ -551,6 +575,10 @@ const routes = {
   }
 },
 '/create-mode-invoice': async (req, res, query) => {
+    // Добавляем проверку авторизации
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+
     const { telegramId, type, itemId } = query;
     
     if (!telegramId || !type) {
@@ -616,7 +644,7 @@ const routes = {
     }
 },
 '/update-user-modes': async (req, res, query) => {
-    // Добавляем проверку авторизации
+    // Только проверка авторизации через authMiddleware
     const authError = await authMiddleware(req, res);
     if (authError) return authError;
 
@@ -630,13 +658,6 @@ const routes = {
         const user = await User.findOne({ where: { telegramId } });
         if (!user) {
             return { status: 404, body: { error: 'User not found' } };
-        }
-
-        // Дополнительная проверка: telegramId из запроса должен совпадать с telegramId из initData
-        const initData = new URLSearchParams(req.headers['x-telegram-init-data']);
-        const userData = JSON.parse(initData.get('user'));
-        if (userData.id.toString() !== telegramId) {
-            return { status: 403, body: { error: 'Unauthorized: User ID mismatch' } };
         }
 
         const updatedModes = [...new Set([...user.purchasedModes, modeName])];
@@ -654,8 +675,11 @@ const routes = {
         return { status: 500, body: { error: 'Failed to update user modes' } };
     }
 },
+'/get-user-modes': async (req, res, query) => {
+    // Только проверка авторизации
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
 
-    '/get-user-modes': async (req, res, query) => {
     const { telegramId } = query;
     
     if (!telegramId) {
@@ -741,8 +765,13 @@ const routes = {
     }
 },
 '/check-admin': async (req, res, query) => {
+  // Только проверка авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   try {
-    const { userId } = query;  
+    const { userId } = query;
+    
     const userIdNum = parseInt(userId);
     const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
     const isAdmin = userIdNum === adminId;
@@ -762,6 +791,10 @@ const routes = {
   }
 },
 '/admin/get-stats': async (req, res, query) => {
+    // Добавляем проверку авторизации
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+
     const { adminId, type } = query;
     
     if (!isAdmin(adminId)) {
@@ -813,6 +846,7 @@ const routes = {
         body: { stats }
       };
     } catch (error) {
+      console.error('Failed to get stats:', error);
       return {
         status: 500,
         body: { error: 'Failed to get stats' }
@@ -892,7 +926,11 @@ const routes = {
           });
         });
       },
-      '/admin/delete-wallet': async (req, res) => {
+'/admin/delete-wallet': async (req, res) => {
+  // Добавляем проверку авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   try {
     const body = await getRequestBody(req);
     const { adminId, address } = body;
@@ -904,7 +942,6 @@ const routes = {
       };
     }
 
-    // Удаляем кошелек
     const result = await ActiveWallet.destroy({
       where: { address }
     });
