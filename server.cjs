@@ -717,23 +717,9 @@ const routes = {
 },
 '/check-admin': async (req, res, query) => {
   try {
-    const { userId } = query;
-    console.log('Check admin request received:', {
-      userId,
-      query,
-      headers: req.headers
-    });
-    
+    const { userId } = query;  
     const userIdNum = parseInt(userId);
     const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
-
-    console.log('Admin check details:', {
-      userIdNum,
-      adminId,
-      envAdminId: process.env.ADMIN_TELEGRAM_ID,
-      isMatch: userIdNum === adminId
-    });
-
     const isAdmin = userIdNum === adminId;
 
     console.log('Sending admin check response:', { isAdmin });
