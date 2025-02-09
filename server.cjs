@@ -819,42 +819,6 @@ const routes = {
       };
     }
   },
-  '/admin/delete-wallet': async (req, res) => {
-  try {
-    const body = await getRequestBody(req);
-    const { adminId, address } = body;
-    
-    if (!isAdmin(adminId)) {
-      return {
-        status: 403,
-        body: { error: 'Unauthorized: Admin access required' }
-      };
-    }
-
-    // Удаляем кошелек
-    const result = await ActiveWallet.destroy({
-      where: { address }
-    });
-
-    if (result === 0) {
-      return {
-        status: 404,
-        body: { error: 'Wallet not found' }
-      };
-    }
-
-    return {
-      status: 200,
-      body: { success: true, message: 'Wallet deleted successfully' }
-    };
-  } catch (error) {
-    console.error('Failed to delete wallet:', error);
-    return {
-      status: 500,
-      body: { error: 'Failed to delete wallet' }
-    };
-  }
-},
 '/reward': async (req, res, query) => {
     const telegramId = query.userid;
     
@@ -928,6 +892,42 @@ const routes = {
           });
         });
       },
+      '/admin/delete-wallet': async (req, res) => {
+  try {
+    const body = await getRequestBody(req);
+    const { adminId, address } = body;
+    
+    if (!isAdmin(adminId)) {
+      return {
+        status: 403,
+        body: { error: 'Unauthorized: Admin access required' }
+      };
+    }
+
+    // Удаляем кошелек
+    const result = await ActiveWallet.destroy({
+      where: { address }
+    });
+
+    if (result === 0) {
+      return {
+        status: 404,
+        body: { error: 'Wallet not found' }
+      };
+    }
+
+    return {
+      status: 200,
+      body: { success: true, message: 'Wallet deleted successfully' }
+    };
+  } catch (error) {
+    console.error('Failed to delete wallet:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to delete wallet' }
+    };
+  }
+},
 '/purchase-with-ton': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
