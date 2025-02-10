@@ -248,46 +248,39 @@ bot.command('start', async (ctx) => {
         }
       }
     } else {
-      // Обновляем username если он изменился
+      console.log(`User ${telegramId} already exists`);
+      
+      // Тихое обновление username если изменился
       if (user.username !== username) {
         await user.update({ username });
       }
       
-      // Если пользователь уже существует, но не имеет реферера и предоставлен реферальный код
+      // Тихое обновление реферала если нужно
       if (!user.referredBy && referralCode) {
         const referrer = await User.findOne({ where: { referralCode } });
-        if (referrer && referrer.telegramId !== telegramId) { // Проверяем что это не самореферал
+        if (referrer && referrer.telegramId !== telegramId) {
           await user.update({ referredBy: referralCode });
           console.log(`Existing user ${telegramId} was referred by ${referrer.telegramId}`);
         }
       }
     }
 
-   // Первое сообщение
-   await ctx.reply('I imagine that right now you\'re feeling a bit like Alice, tumbling down the rabbit hole?');
-    
-   // Ждем 2 секунды
-   await new Promise(resolve => setTimeout(resolve, 2000));
-   
-   // Второе сообщение
-   await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes.');
-   
-   // Ждем еще 2 секунды
-   await new Promise(resolve => setTimeout(resolve, 2000));
-   
-   // Третье сообщение с кнопкой
-   await ctx.reply('Are you ready to join right now?', {
-     reply_markup: {
-       inline_keyboard: [[
-         { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot/start' }
-       ]]
-     }
-   });
+    // Отправляем приветственные сообщения в любом случае
+    await ctx.reply('I imagine that right now you\'re feeling a bit like Alice, tumbling down the rabbit hole?');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes.');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await ctx.reply('Are you ready to join right now?', {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot/start' }
+        ]]
+      }
+    });
 
- } catch (error) {
-   console.error('Error in start command:', error);
-   ctx.reply('An error occurred. Please try again later.');
- }
+  } catch (error) {
+    console.error('Error in start command:', error);
+  }
 });
 
 // Запускаем бота
@@ -1736,15 +1729,6 @@ const server = https.createServer(options, async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const method = req.method;
-
-  // Логируем только не статические запросы
-  if (!isStaticRequest(pathname)) {
-    console.log('Incoming request:', { 
-      method, 
-      pathname, 
-      query: parsedUrl.query 
-    });
-  }
 
   // Проверяем rate limit только для определенных эндпоинтов
   if (LIMITED_ENDPOINTS.includes(pathname)) {
