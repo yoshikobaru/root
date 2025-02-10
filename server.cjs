@@ -67,13 +67,31 @@ const sequelize = new Sequelize(
   {
     host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT,
-    logging: (sql, timing, options) => {
-      if (options.type === 'ERROR') {
-        console.error('Database Error:', {
-          sql,
-          error: options.error,
-          timestamp: new Date().toISOString()
-        });
+    logging: false, // Отключаем стандартные SQL логи
+    logQueryParameters: false,
+    benchmark: false,
+    // Настраиваем кастомный logger
+    logger: {
+      error: (err) => {
+        // Логируем ошибки БД
+        if (err.original) { // Ошибки базы данных
+          console.error('Database Error:', {
+            message: err.original.message,
+            code: err.original.code,
+            timestamp: new Date().toISOString()
+          });
+        } else if (err.name === 'SequelizeValidationError') { // Ошибки валидации
+          console.error('Validation Error:', {
+            message: err.message,
+            errors: err.errors.map(e => e.message),
+            timestamp: new Date().toISOString()
+          });
+        } else { // Другие ошибки запросов
+          console.error('Query Error:', {
+            message: err.message,
+            timestamp: new Date().toISOString()
+          });
+        }
       }
     },
     pool: {
@@ -84,12 +102,24 @@ const sequelize = new Sequelize(
     }
   }
 );
-sequelize.on('error', (err) => {
-  console.error('Sequelize Error:', {
-    message: err.message,
-    code: err.code,
-    timestamp: new Date().toISOString()
+sequelize.authenticate()
+  .then(() => {
+    console.log('Database connection has been established successfully.');
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
   });
+
+// Если нужно отслеживать отключение:
+process.on('SIGINT', async () => {
+  try {
+    await sequelize.close();
+    console.log('Database connection closed.');
+    process.exit(0);
+  } catch (err) {
+    console.error('Error closing database connection:', err);
+    process.exit(1);
+  }
 });
 
 // Определяем модель User
