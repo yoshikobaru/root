@@ -59,23 +59,46 @@ const isAdmin = (telegramId) => {
   return telegramId.toString() === ADMIN_ID;
 };
 
-// Создаем подключение к базе данных
+// Создаем подключение к базе данных с логами только об ошибках, создавая пул в 50 подключений к бд
 const sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USER,
   process.env.DB_PASSWORD, 
   {
-      host: process.env.DB_HOST,
-      dialect: process.env.DB_DIALECT
+    host: process.env.DB_HOST,
+    dialect: process.env.DB_DIALECT,
+    logging: (sql, timing, options) => {
+      if (options.type === 'ERROR') {
+        console.error('Database Error:', {
+          sql,
+          error: options.error,
+          timestamp: new Date().toISOString()
+        });
+      }
+    },
+    pool: {
+      max: 50,
+      min: 10,
+      acquire: 30000,
+      idle: 10000
+    }
   }
 );
+sequelize.on('error', (err) => {
+  console.error('Sequelize Error:', {
+    message: err.message,
+    code: err.code,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Определяем модель User
 const User = sequelize.define('User', {
   telegramId: {
     type: DataTypes.BIGINT, // Изменить тип с STRING на BIGINT
     allowNull: false,
-    unique: true
+    unique: true,
+    index: true
   },
   username: {
     type: DataTypes.STRING,
@@ -84,7 +107,8 @@ const User = sequelize.define('User', {
   referralCode: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true
+    unique: true,
+    index: true
   },
   referredBy: {
     type: DataTypes.STRING,
@@ -171,7 +195,6 @@ const webAppUrl = 'https://walletfinder.ru';
 // Обработчик команды /start
 bot.command('start', async (ctx) => {
   const telegramId = ctx.from.id.toString();
-  // Используем first_name если username отсутствует
   const username = ctx.from.username || ctx.from.first_name || `user_${telegramId}`;
   const referralCode = ctx.message.text.split(' ')[1];
 
@@ -210,29 +233,31 @@ bot.command('start', async (ctx) => {
       }
     }
 
-    ctx.reply('🌐 Welcome to $_root@btc\n\n' + 
-      '🔄 Bitcoin wallets search app powered by:\n' +
-      '⚡️ Method Inc.\n' +
-      '🔗 BTC Network Integration\n' +
-      '🔐 Advanced cryptographic algorithms\n\n' +
-      '💰 Earn $ROOT tokens while searching:\n' +
-      '📈 Mining rewards for each attempt\n' +
+   // Первое сообщение
+   await ctx.reply('I imagine that right now you\'re feeling a bit like Alice, tumbling down the rabbit hole?');
+    
+   // Ждем 2 секунды
+   await new Promise(resolve => setTimeout(resolve, 2000));
+   
+   // Второе сообщение
+   await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes.');
+   
+   // Ждем еще 2 секунды
+   await new Promise(resolve => setTimeout(resolve, 2000));
+   
+   // Третье сообщение с кнопкой
+   await ctx.reply('Are you ready to join right now?', {
+     reply_markup: {
+       inline_keyboard: [[
+         { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot/start' }
+       ]]
+     }
+   });
 
-      '✨ Coming soon:\n' +
-      '📊 $ROOT Token Trading\n' +
-      '💫 Major DEX Listings\n' +
-      '🌟 Staking & Farming\n\n' +
-      '🚀 Ready to start your searching journey?\n' +
-      '👉 Open Web App to begin:', {
-      reply_markup: {
-        resize_keyboard: true
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in start command:', error);
-    ctx.reply('An error occurred. Please try again later.');
-  }
+ } catch (error) {
+   console.error('Error in start command:', error);
+   ctx.reply('An error occurred. Please try again later.');
+ }
 });
 
 // Запускаем бота
@@ -1613,6 +1638,65 @@ const serveStaticFile = (filePath, res) => {
   });
 };
 
+const LIMITED_ENDPOINTS = [
+  '/get-root-balance',
+  '/get-referral-link',
+  '/get-referral-count',
+  '/get-user-modes',
+  '/get-friends-leaderboard'
+];
+
+const checkUserRateLimit = async (userId) => {
+  const key = `user-ratelimit:${userId}`;
+  const limit = 50; // 20 запросов
+  const window = 1; // за 1 секунду
+  
+  try {
+    const current = await redis.incr(key);
+    if (current === 1) {
+      await redis.expire(key, window);
+    }
+    return current <= limit;
+  } catch (error) {
+    console.error('Rate limit check failed:', error);
+    return true; // В случае ошибки пропускаем запрос
+  }
+};
+
+const rateLimitMiddleware = async (req) => {
+  const pathname = new URL(req.url, 'https://walletfinder.ru').pathname;
+  
+  // Проверяем только указанные эндпоинты
+  if (!LIMITED_ENDPOINTS.includes(pathname)) {
+    return null;
+  }
+
+  // Получаем Telegram ID пользователя
+  const initData = req.headers['x-telegram-init-data'];
+  let userId;
+
+  try {
+    const params = new URLSearchParams(initData);
+    const user = JSON.parse(params.get('user'));
+    userId = user.id.toString();
+  } catch (e) {
+    return null; // Если не удалось получить ID, пропускаем запрос
+  }
+
+  const allowed = await checkUserRateLimit(userId);
+  if (!allowed) {
+    return {
+      status: 429,
+      body: {
+        error: 'Too Many Requests',
+        message: 'Please slow down your requests.'
+      }
+    };
+  }
+
+  return null;
+};
+
 const options = {
     key: fs.readFileSync('/etc/letsencrypt/live/walletfinder.ru/privkey.pem'),
     cert: fs.readFileSync('/etc/letsencrypt/live/walletfinder.ru/fullchain.pem')
@@ -1630,6 +1714,20 @@ const server = https.createServer(options, async (req, res) => {
       pathname, 
       query: parsedUrl.query 
     });
+  }
+
+  // Проверяем rate limit только для определенных эндпоинтов
+  if (LIMITED_ENDPOINTS.includes(pathname)) {
+    const rateLimitError = await rateLimitMiddleware(req);
+    if (rateLimitError) {
+      res.writeHead(rateLimitError.status, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Telegram-Init-Data'
+      });
+      res.end(JSON.stringify(rateLimitError.body));
+      return;
+    }
   }
 
   // Проверяем существование роута в routes
@@ -1668,7 +1766,7 @@ const server = https.createServer(options, async (req, res) => {
     
     serveStaticFile(filePath, res);
     return;
-}
+  }
 
   // Если не статический файл и не API route, возвращаем index.html
   let filePath = path.join(__dirname, 'dist', 'index.html');
