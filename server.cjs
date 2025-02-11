@@ -266,11 +266,11 @@ bot.command('start', async (ctx) => {
     }
 
     // Отправляем приветственные сообщения в любом случае
-    await ctx.reply('I imagine that right now you\'re feeling a bit like Alice, tumbling down the rabbit hole?');
+    await ctx.reply('I suppose right now you\'re feeling a bit like Alice falling down a rabbit hole? 🐰');
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes.');
+    await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes... 💊');
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await ctx.reply('Are you ready to join right now?', {
+    await ctx.reply('Are you ready to join right now? 🚀', {
       reply_markup: {
         inline_keyboard: [[
           { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot/start' }
