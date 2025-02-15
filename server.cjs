@@ -273,7 +273,7 @@ bot.command('start', async (ctx) => {
     await ctx.reply('Are you ready to join right now? 🚀', {
       reply_markup: {
         inline_keyboard: [[
-          { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot/start' }
+          { text: 'Join RootBTC 🔐', url: 'https://t.me/RootBTC_bot?start=webapp' }
         ]]
       }
     });
