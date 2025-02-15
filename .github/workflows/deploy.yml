@@ -12,7 +12,7 @@ jobs:
       - name: Deploy to server
         uses: appleboy/ssh-action@master
         with:
-          host: walletfinder.ru
+          host: ssh.walletfinder.ru
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
