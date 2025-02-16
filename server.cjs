@@ -234,12 +234,21 @@ bot.command('start', async (ctx) => {
     if (!user) {
       const newReferralCode = crypto.randomBytes(4).toString('hex');
       
-      user = await User.create({
-        telegramId,
-        username,
-        referralCode: newReferralCode,
-        referredBy: referralCode || null
-      });
+      try {
+        user = await User.create({
+          telegramId,
+          username,
+          referralCode: newReferralCode,
+          referredBy: referralCode || null
+        });
+      } catch (createError) {
+        if (createError.name === 'SequelizeUniqueConstraintError') {
+          // Если пользователь был создан между проверкой и созданием
+          user = await User.findOne({ where: { telegramId } });
+        } else {
+          throw createError;
+        }
+      }
 
       if (referralCode) {
         const referrer = await User.findOne({ where: { referralCode } });
@@ -462,13 +471,10 @@ const routes = {
   }
 },
 '/active-wallets': async (req, res, query) => {
-  // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
   try {
-    console.log('Fetching wallets...');
-    
     const wallet = await ActiveWallet.findOne({
       where: { 
         status: 'active'
@@ -477,7 +483,8 @@ const routes = {
       order: sequelize.random()
     });
 
-    // Возвращаем пустой массив, если кошельков нет
+    console.log(`AW: ${wallet ? '✅' : '❌'}`);
+
     if (!wallet) {
       return { 
         status: 200,
@@ -813,18 +820,20 @@ const routes = {
     }
 },
 '/check-admin': async (req, res, query) => {
-  // Только проверка авторизации
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
   try {
     const { userId } = query;
-    
     const userIdNum = parseInt(userId);
     const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID);
     const isAdmin = userIdNum === adminId;
 
-    console.log('Sending admin check response:', { isAdmin });
+    // Получаем данные пользователя из initData в headers
+    const initData = new URLSearchParams(req.headers['x-telegram-init-data']);
+    const userData = JSON.parse(initData.get('user'));
+    
+    console.log(`👤 User: ${userData.username || userData.first_name || 'Unknown'} (${userData.id}) | Admin: ${isAdmin ? '✅' : '❌'}`);
 
     return {
       status: 200,
@@ -1458,14 +1467,23 @@ const routes = {
         }
 
         // Создаем нового пользователя
-        user = await User.create({
-          telegramId,
-          username,
-          referralCode,
-          rootBalance: 0,
-          referredBy: referredBy || null,
-          referralRewardsCount: 0
-        });
+        try {
+          user = await User.create({
+            telegramId,
+            username,
+            referralCode,
+            rootBalance: 0,
+            referredBy: referredBy || null,
+            referralRewardsCount: 0
+          });
+        } catch (createError) {
+          if (createError.name === 'SequelizeUniqueConstraintError') {
+            // Если пользователь был создан между проверкой и созданием
+            user = await User.findOne({ where: { telegramId } });
+          } else {
+            throw createError;
+          }
+        }
 
         resolve({
           status: 200,
