@@ -1026,7 +1026,7 @@ const routes = {
         const data = JSON.parse(body);
         console.log('Received TON purchase data:', data);
 
-        const { telegramId, type, itemId, transactionBoc } = data;
+        const { telegramId, type, itemId, transactionBoc, userAddress } = data;
 
         if (!telegramId || !type || !itemId || !transactionBoc) {
           resolve({ status: 400, body: { error: 'Missing required parameters' } });
@@ -1059,7 +1059,8 @@ const routes = {
           itemId,
           currentModes: user.purchasedModes,
           currentEnergy: user.energy,
-          currentMaxEnergy: user.maxEnergy
+          currentMaxEnergy: user.maxEnergy,
+          userAddress
         });
 
         // Проверяем тип покупки
@@ -1077,7 +1078,8 @@ const routes = {
           console.log('Mode purchase successful:', {
             telegramId,
             itemId,
-            purchasedModes
+            purchasedModes,
+            userAddress
           });
 
           resolve({
@@ -1087,7 +1089,8 @@ const routes = {
               message: `${itemId} mode purchased successfully`,
               user: {
                 purchasedModes,
-                telegramId: user.telegramId
+                telegramId: user.telegramId,
+                userAddress
               }
             }
           });
@@ -1105,7 +1108,8 @@ const routes = {
             console.log('Energy refill successful:', {
               telegramId,
               energy: currentMaxEnergy,
-              maxEnergy: currentMaxEnergy
+              maxEnergy: currentMaxEnergy,
+              userAddress
             });
 
             resolve({
@@ -1116,7 +1120,8 @@ const routes = {
                 user: {
                   energy: currentMaxEnergy,
                   maxEnergy: currentMaxEnergy,
-                  telegramId: user.telegramId
+                  telegramId: user.telegramId,
+                  userAddress
                 }
               }
             });
@@ -1144,7 +1149,8 @@ const routes = {
               telegramId,
               oldMaxEnergy: currentMaxEnergy,
               newMaxEnergy,
-              increase: capacityIncrease
+              increase: capacityIncrease,
+              userAddress
             });
 
             resolve({
@@ -1155,7 +1161,8 @@ const routes = {
                 user: {
                   energy: newMaxEnergy,
                   maxEnergy: newMaxEnergy,
-                  telegramId: user.telegramId
+                  telegramId: user.telegramId,
+                  userAddress
                 }
               }
             });
