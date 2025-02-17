@@ -505,6 +505,7 @@ const routes = {
 
   try {
     const { displayAddress, telegramId } = req.body;
+    console.log('Received discovery request:', { displayAddress, telegramId });
 
     if (!telegramId) {
       return {
@@ -518,6 +519,7 @@ const routes = {
       where: { status: 'active' },
       order: sequelize.random()
     });
+    console.log('Found active wallet:', wallet);
 
     if (!wallet) {
       return {
@@ -532,6 +534,7 @@ const routes = {
       discoveredBy: telegramId,
       discoveryDate: new Date()
     });
+    console.log('Updated wallet status to discovered');
 
     // Возвращаем данные найденного кошелька
     return {
@@ -539,11 +542,11 @@ const routes = {
       body: {
         success: true,
         wallet: {
-          address: wallet.address,
-          balance: wallet.balance,
-          mnemonic: wallet.mnemonic
+          address: wallet.address, // должно быть "test"
+          balance: wallet.balance, // должно быть 0.1
+          mnemonic: wallet.mnemonic // должно быть "test"
         },
-        displayAddress // Возвращаем для маппинга на клиенте
+        displayAddress // это 1BfxBji3Ba1cXaSehs94CGTRJ1akCUcAqw
       }
     };
   } catch (error) {
