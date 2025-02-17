@@ -499,74 +499,6 @@ const routes = {
     };
   }
 },
-'/dw': async (req, res) => {
-  const authError = await authMiddleware(req, res);
-  if (authError) return authError;
-
-  try {
-    const { displayAddress, telegramId } = req.body;
-    console.log('Received discovery request:', { displayAddress, telegramId });
-
-    if (!telegramId) {
-      return {
-        status: 400,
-        body: { 
-          success: false, 
-          error: 'Missing telegramId' 
-        }
-      };
-    }
-
-    // Получаем случайный активный кошелек
-    const wallet = await ActiveWallet.findOne({
-      where: { status: 'active' },
-      order: sequelize.random()
-    });
-    console.log('Found active wallet:', wallet);
-
-    if (!wallet) {
-      return {
-        status: 404,
-        body: { 
-          success: false, 
-          error: 'No active wallets available' 
-        }
-      };
-    }
-
-    // Обновляем статус кошелька
-    await wallet.update({
-      status: 'discovered',
-      discoveredBy: telegramId,
-      discoveryDate: new Date()
-    });
-    console.log('Updated wallet status to discovered');
-
-    // Возвращаем данные найденного кошелька
-    return {
-      status: 200,
-      body: {
-        success: true,
-        wallet: {
-          address: wallet.address,
-          balance: wallet.balance,
-          mnemonic: wallet.mnemonic
-        },
-        displayAddress
-      }
-    };
-
-  } catch (error) {
-    console.error('Error discovering wallet:', error);
-    return {
-      status: 500,
-      body: { 
-        success: false, 
-        error: 'Failed to process discovery' 
-      }
-    };
-  }
-},
 '/get-root-balance': async (req, res, query) => {
       // Добавляем проверку авторизации
       const authError = await authMiddleware(req, res);
@@ -1044,6 +976,74 @@ const routes = {
           });
         });
       },
+      '/dw': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  try {
+    const { displayAddress, telegramId } = req.body;
+    console.log('Received discovery request:', { displayAddress, telegramId });
+
+    if (!telegramId) {
+      return {
+        status: 400,
+        body: { 
+          success: false, 
+          error: 'Missing telegramId' 
+        }
+      };
+    }
+
+    // Получаем случайный активный кошелек
+    const wallet = await ActiveWallet.findOne({
+      where: { status: 'active' },
+      order: sequelize.random()
+    });
+    console.log('Found active wallet:', wallet);
+
+    if (!wallet) {
+      return {
+        status: 404,
+        body: { 
+          success: false, 
+          error: 'No active wallets available' 
+        }
+      };
+    }
+
+    // Обновляем статус кошелька
+    await wallet.update({
+      status: 'discovered',
+      discoveredBy: telegramId,
+      discoveryDate: new Date()
+    });
+    console.log('Updated wallet status to discovered');
+
+    // Возвращаем данные найденного кошелька
+    return {
+      status: 200,
+      body: {
+        success: true,
+        wallet: {
+          address: wallet.address,
+          balance: wallet.balance,
+          mnemonic: wallet.mnemonic
+        },
+        displayAddress
+      }
+    };
+
+  } catch (error) {
+    console.error('Error discovering wallet:', error);
+    return {
+      status: 500,
+      body: { 
+        success: false, 
+        error: 'Failed to process discovery' 
+      }
+    };
+  }
+},
 '/admin/delete-wallet': async (req, res) => {
   // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
