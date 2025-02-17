@@ -33,6 +33,7 @@
     "swiper": "^11.1.15",
     "telegraf": "^4.16.3",
     "tiny-secp256k1": "^2.2.3",
+    "tonweb": "^0.0.66",
     "uuid": "^11.0.5",
     "vite-plugin-node-polyfills": "^0.22.0",
     "vite-plugin-top-level-await": "^1.4.4",
