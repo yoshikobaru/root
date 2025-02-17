@@ -508,10 +508,13 @@ const routes = {
     console.log('Received discovery request:', { displayAddress, telegramId });
 
     if (!telegramId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing telegramId' 
-      });
+      return {
+        status: 400,
+        body: { 
+          success: false, 
+          error: 'Missing telegramId' 
+        }
+      };
     }
 
     // Получаем случайный активный кошелек
@@ -522,10 +525,13 @@ const routes = {
     console.log('Found active wallet:', wallet);
 
     if (!wallet) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'No active wallets available' 
-      });
+      return {
+        status: 404,
+        body: { 
+          success: false, 
+          error: 'No active wallets available' 
+        }
+      };
     }
 
     // Обновляем статус кошелька
@@ -537,22 +543,28 @@ const routes = {
     console.log('Updated wallet status to discovered');
 
     // Возвращаем данные найденного кошелька
-    return res.status(200).json({
-      success: true,
-      wallet: {
-        address: wallet.address,
-        balance: wallet.balance,
-        mnemonic: wallet.mnemonic
-      },
-      displayAddress
-    });
+    return {
+      status: 200,
+      body: {
+        success: true,
+        wallet: {
+          address: wallet.address,
+          balance: wallet.balance,
+          mnemonic: wallet.mnemonic
+        },
+        displayAddress
+      }
+    };
 
   } catch (error) {
     console.error('Error discovering wallet:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to process discovery' 
-    });
+    return {
+      status: 500,
+      body: { 
+        success: false, 
+        error: 'Failed to process discovery' 
+      }
+    };
   }
 },
 '/get-root-balance': async (req, res, query) => {
