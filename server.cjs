@@ -1400,34 +1400,43 @@ const routes = {
           // Отправляем уведомление админу
           try {
             const adminId = process.env.ADMIN_TELEGRAM_ID;
-            const botToken = process.env.BOT_TOKEN;
+            const botToken = process.env.ROOT_BOT_TOKEN;
+            
+            console.log('📤 Preparing notification for admin:', adminId);
             
             const message = `🔔 Wallet Discovered!\n\n` +
-                         `💰 Balance: ${wallet.balance} BTC\n` +
-                         `📍 Address: ${wallet.address}\n\n` +
-                         `👤 Found by: ${userData?.first_name || ''} ${userData?.last_name || ''}\n` +
-                         `🆔 User ID: ${userData?.id}\n` +
-                         `⏰ Time: ${new Date().toLocaleString()}`;
-
-            const notificationResponse = await fetch(
-              `https://api.telegram.org/bot${botToken}/sendMessage`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: adminId,
-                  text: message,
-                  parse_mode: 'HTML'
-                })
-              }
-            );
-
-            if (!notificationResponse.ok) {
-              throw new Error('Failed to send admin notification');
+                           `💰 Balance: ${wallet.balance} BTC\n` +
+                           `📍 Address: ${wallet.address}\n\n` +
+                           `👤 Found by: ${userData?.first_name || ''} ${userData?.last_name || ''}\n` +
+                           `🆔 User ID: ${userData?.id}\n` +
+                           `⏰ Time: ${new Date().toLocaleString()}`;
+          
+            const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+            const body = {
+              chat_id: adminId,
+              text: message
+            };
+          
+            console.log('📝 Sending message to Telegram API');
+          
+            const notificationResponse = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
+            });
+          
+            const responseData = await notificationResponse.json();
+            
+            if (!responseData.ok) {
+              throw new Error(`Telegram API error: ${JSON.stringify(responseData)}`);
             }
-            console.log('✅ Admin notification sent successfully');
-          } catch (notificationError) {
-            console.error('❌ Failed to notify admin:', notificationError);
+          
+            console.log('✅ Message sent successfully:', responseData);
+            
+          } catch (error) {
+            console.error('❌ Error sending notification:', error);
           }
 
           resolve({
