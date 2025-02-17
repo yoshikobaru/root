@@ -470,39 +470,122 @@ const routes = {
     };
   }
 },
-'/active-wallets': async (req, res, query) => {
+'/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
   try {
+    const { adminId } = req.query;
+    
+    if (!isAdmin(adminId)) {
+      return {
+        status: 403,
+        body: { error: 'Unauthorized: Admin access required' }
+      };
+    }
+
+    // Получаем все кошельки для админа
+    const wallets = await ActiveWallet.findAll({
+      attributes: ['id', 'address', 'balance', 'status', 'discoveredBy', 'discoveryDate', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+
+    return {
+      status: 200,
+      body: { 
+        success: true,
+        wallets 
+      }
+    };
+  } catch (error) {
+    console.error('Failed to get wallets:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to get wallets' }
+    };
+  }
+},
+'/aw': async (req, res, query) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  try {
+    // Проверяем наличие активных кошельков (без отправки данных)
+    const hasActiveWallets = await ActiveWallet.count({
+      where: { status: 'active' }
+    }) > 0;
+
+    // Возвращаем только статус наличия активных кошельков
+    return { 
+      status: 200,
+      body: { 
+        hasActiveWallets,
+        placeholder: {
+          address: 'bc1placeholder',
+          balance: '0.00000000'
+        }
+      }
+    };
+  } catch (error) {
+    console.error('Error checking active wallets:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Internal server error' }
+    };
+  }
+},
+'/dw': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  try {
+    const { displayAddress, telegramId } = req.body;
+
+    if (!telegramId) {
+      return {
+        status: 400,
+        body: { error: 'Missing telegramId' }
+      };
+    }
+
+    // Получаем случайный активный кошелек
     const wallet = await ActiveWallet.findOne({
-      where: { 
-        status: 'active'
-      },
-      attributes: ['id', 'address', 'balance', 'mnemonic', 'status'],
+      where: { status: 'active' },
       order: sequelize.random()
     });
 
-    console.log(`AW: ${wallet ? '✅' : '❌'}`);
-
     if (!wallet) {
-      return { 
-        status: 200,
-        body: { 
-          wallets: [],
-          message: 'No active wallets available'
-        }
+      return {
+        status: 404,
+        body: { error: 'No active wallets available' }
       };
     }
-    return { 
-      status: 200, 
-      body: { wallet }
+
+    // Обновляем статус кошелька
+    await wallet.update({
+      status: 'discovered',
+      discoveredBy: telegramId,
+      discoveryDate: new Date()
+    });
+
+    // Возвращаем данные найденного кошелька
+    return {
+      status: 200,
+      body: {
+        success: true,
+        wallet: {
+          address: wallet.address,
+          balance: wallet.balance,
+          mnemonic: wallet.mnemonic
+        },
+        displayAddress // Возвращаем для маппинга на клиенте
+      }
     };
   } catch (error) {
-    console.error('Error getting active wallet:', error);
-    return { 
-      status: 500, 
-      body: { error: 'Failed to get active wallet', details: error.message }
+    console.error('Error discovering wallet:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to process discovery' }
     };
   }
 },
