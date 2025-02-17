@@ -642,9 +642,9 @@ const routes = {
 
     const prices = {
         mode: {
-            'basic': 99,
-            'advanced': 149,
-            'expert': 249
+            'basic': 149,
+            'advanced': 249,
+            'expert': 499
         },
         energy: {
             'energy_full': 25,

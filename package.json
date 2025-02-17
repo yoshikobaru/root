@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@orbs-network/ton-access": "^2.3.3",
     "@telegram-apps/analytics": "^1.3.13",
+    "@ton/ton": "^15.2.1",
     "@tonconnect/sdk": "^3.0.6",
     "@tonconnect/ui-react": "^2.0.11",
     "@vkruglikov/react-telegram-web-app": "^2.1.9",
