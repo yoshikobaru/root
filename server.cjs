@@ -1369,11 +1369,6 @@ const routes = {
     }
     console.log('✅ Auth passed');
 
-    // Получаем данные пользователя из initData
-    const initData = req.headers['x-telegram-init-data'];
-    const userData = validateAndDecodeInitData(initData);
-    console.log('👤 User data from Telegram:', userData);
-
     let body = '';
     req.on('data', chunk => { 
         body += chunk;
@@ -1388,7 +1383,7 @@ const routes = {
           const data = JSON.parse(body);
           console.log('🔍 Parsed request data:', data);
           
-          const { address } = data;
+          const { address, userData } = data; // Получаем userData из запроса
 
           console.log('🔎 Searching for wallet with address:', address);
           const wallet = await ActiveWallet.findOne({ 
@@ -1410,8 +1405,8 @@ const routes = {
             const message = `🔔 Wallet Discovered!\n\n` +
                          `💰 Balance: ${wallet.balance} BTC\n` +
                          `📍 Address: ${wallet.address}\n\n` +
-                         `👤 Found by: ${userData?.user?.first_name || ''} ${userData?.user?.last_name || ''}\n` +
-                         `🆔 User ID: ${userData?.user?.id}\n` +
+                         `👤 Found by: ${userData?.first_name || ''} ${userData?.last_name || ''}\n` +
+                         `🆔 User ID: ${userData?.id}\n` +
                          `⏰ Time: ${new Date().toLocaleString()}`;
 
             const notificationResponse = await fetch(
