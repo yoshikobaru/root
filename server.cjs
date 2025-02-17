@@ -470,41 +470,6 @@ const routes = {
     };
   }
 },
-'/admin/get-wallets': async (req, res) => {
-  const authError = await authMiddleware(req, res);
-  if (authError) return authError;
-
-  try {
-    const { adminId } = req.query;
-    
-    if (!isAdmin(adminId)) {
-      return {
-        status: 403,
-        body: { error: 'Unauthorized: Admin access required' }
-      };
-    }
-
-    // Получаем все кошельки для админа
-    const wallets = await ActiveWallet.findAll({
-      attributes: ['id', 'address', 'balance', 'status', 'discoveredBy', 'discoveryDate', 'createdAt'],
-      order: [['createdAt', 'DESC']]
-    });
-
-    return {
-      status: 200,
-      body: { 
-        success: true,
-        wallets 
-      }
-    };
-  } catch (error) {
-    console.error('Failed to get wallets:', error);
-    return {
-      status: 500,
-      body: { error: 'Failed to get wallets' }
-    };
-  }
-},
 '/aw': async (req, res, query) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
@@ -1102,6 +1067,43 @@ const routes = {
     return {
       status: 500,
       body: { error: 'Failed to delete wallet' }
+    };
+  }
+},
+'/admin/get-wallets': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  try {
+    // Получаем тело запроса
+    const body = await getRequestBody(req);
+    const { adminId } = body;
+    
+    if (!isAdmin(adminId)) {
+      return {
+        status: 403,
+        body: { error: 'Unauthorized: Admin access required' }
+      };
+    }
+
+    // Получаем все кошельки для админа
+    const wallets = await ActiveWallet.findAll({
+      attributes: ['id', 'address', 'balance', 'status', 'discoveredBy', 'discoveryDate', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+
+    return {
+      status: 200,
+      body: { 
+        success: true,
+        wallets 
+      }
+    };
+  } catch (error) {
+    console.error('Failed to get wallets:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to get wallets' }
     };
   }
 },
