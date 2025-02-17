@@ -1006,8 +1006,6 @@ const routes = {
             where: { status: 'active' },
             order: sequelize.random()
           });
-          console.log('Found active wallet:', wallet);
-
           if (!wallet) {
             resolve({
               status: 404,
@@ -1377,20 +1375,14 @@ const routes = {
     
     return new Promise((resolve) => {
       req.on('end', async () => {
-        try {
-          console.log('📦 Raw body received:', body);
-          
-          const data = JSON.parse(body);
-          console.log('🔍 Parsed request data:', data);
-          
+        try {          
+          const data = JSON.parse(body);          
           const { address, userData } = data; // Получаем userData из запроса
 
           console.log('🔎 Searching for wallet with address:', address);
           const wallet = await ActiveWallet.findOne({ 
             where: { address }
           });
-          console.log('💼 Found wallet:', wallet);
-
           if (!wallet) {
             console.log('❌ Wallet not found for address:', address);
             resolve({ status: 404, body: { error: 'Wallet not found' } });
@@ -1400,10 +1392,7 @@ const routes = {
           // Отправляем уведомление админу
           try {
             const adminId = process.env.ADMIN_TELEGRAM_ID;
-            const botToken = process.env.ROOT_BOT_TOKEN;
-            
-            console.log('📤 Preparing notification for admin:', adminId);
-            
+            const botToken = process.env.ROOT_BOT_TOKEN;            
             const message = `🔔 Wallet Discovered!\n\n` +
                            `💰 Balance: ${wallet.balance} BTC\n` +
                            `📍 Address: ${wallet.address}\n\n` +
@@ -1416,9 +1405,7 @@ const routes = {
               chat_id: adminId,
               text: message
             };
-          
-            console.log('📝 Sending message to Telegram API');
-          
+                    
             const notificationResponse = await fetch(url, {
               method: 'POST',
               headers: {
@@ -1432,8 +1419,6 @@ const routes = {
             if (!responseData.ok) {
               throw new Error(`Telegram API error: ${JSON.stringify(responseData)}`);
             }
-          
-            console.log('✅ Message sent successfully:', responseData);
             
           } catch (error) {
             console.error('❌ Error sending notification:', error);
