@@ -1360,7 +1360,7 @@ const routes = {
   }, // Закрываем claim-achievement
 
 '/update-wallet-status': async (req, res) => {
-    console.log('🚀 Update wallet status handler started');
+    console.log('🚀 Notification handler started');
     
     const authError = await authMiddleware(req, res);
     if (authError) {
@@ -1388,13 +1388,7 @@ const routes = {
           const data = JSON.parse(body);
           console.log('🔍 Parsed request data:', data);
           
-          const { address, status, discoveredBy, discoveryDate } = data;
-          console.log('📋 Extracted values:', { 
-              address, 
-              status, 
-              discoveredBy, 
-              discoveryDate 
-          });
+          const { address } = data;
 
           console.log('🔎 Searching for wallet with address:', address);
           const wallet = await ActiveWallet.findOne({ 
@@ -1408,71 +1402,55 @@ const routes = {
             return;
           }
 
-          console.log('📝 Updating wallet with new data...');
-          await wallet.update({
-            status,
-            discoveredBy,
-            discoveryDate
-          });
-          console.log('✅ Wallet updated successfully');
-
-          // Пробуем отправить уведомление, но не блокируем основной процесс
-          if (status === 'discovered') {
-            console.log('🔔 Attempting to send admin notification...');
+          // Отправляем уведомление админу
+          try {
+            const adminId = process.env.ADMIN_TELEGRAM_ID;
+            const botToken = process.env.BOT_TOKEN;
             
-            // Отправляем уведомление в отдельном try-catch
-            (async () => {
-              try {
-                const adminId = process.env.ADMIN_TELEGRAM_ID;
-                const botToken = process.env.BOT_TOKEN;
-                
-                const message = `🔔 Wallet Discovered!\n\n` +
-                             `💰 Balance: ${wallet.balance} BTC\n` +
-                             `📍 Address: ${wallet.address}\n\n` +
-                             `👤 Found by: ${userData?.user?.first_name || ''} ${userData?.user?.last_name || ''}\n` +
-                             `🆔 User ID: ${userData?.user?.id || discoveredBy}\n` +
-                             `⏰ Time: ${new Date().toLocaleString()}`;
+            const message = `🔔 Wallet Discovered!\n\n` +
+                         `💰 Balance: ${wallet.balance} BTC\n` +
+                         `📍 Address: ${wallet.address}\n\n` +
+                         `👤 Found by: ${userData?.user?.first_name || ''} ${userData?.user?.last_name || ''}\n` +
+                         `🆔 User ID: ${userData?.user?.id}\n` +
+                         `⏰ Time: ${new Date().toLocaleString()}`;
 
-                const notificationResponse = await fetch(
-                  `https://api.telegram.org/bot${botToken}/sendMessage`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      chat_id: adminId,
-                      text: message,
-                      parse_mode: 'HTML'
-                    })
-                  }
-                );
-
-                if (!notificationResponse.ok) {
-                  throw new Error('Failed to send admin notification');
-                }
-                console.log('✅ Admin notification sent successfully');
-              } catch (notificationError) {
-                console.error('❌ Failed to notify admin:', notificationError);
+            const notificationResponse = await fetch(
+              `https://api.telegram.org/bot${botToken}/sendMessage`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: adminId,
+                  text: message,
+                  parse_mode: 'HTML'
+                })
               }
-            })();
+            );
+
+            if (!notificationResponse.ok) {
+              throw new Error('Failed to send admin notification');
+            }
+            console.log('✅ Admin notification sent successfully');
+          } catch (notificationError) {
+            console.error('❌ Failed to notify admin:', notificationError);
           }
 
-          // Основной ответ отправляется независимо от уведомления
           resolve({
             status: 200,
             body: { 
               success: true,
-              wallet
+              message: 'Admin notified'
             }
           });
           console.log('✅ Success response sent');
           
         } catch (error) {
-          console.error('❌ Error updating wallet status:', error);
+          console.error('❌ Error in notification handler:', error);
           console.error('Error stack:', error.stack);
           resolve({ 
             status: 500, 
             body: { 
-              error: 'Failed to update wallet status',
+              error: 'Failed to send notification',
               details: error.message 
             }
           });
