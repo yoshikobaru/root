@@ -1302,6 +1302,108 @@ const routes = {
     });
   });
 },
+'/update-energy': async (req, res) => {
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+    
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    
+    return new Promise((resolve) => {
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { telegramId, type, value } = data;
+          
+          if (!telegramId || !type) {
+            resolve({ status: 400, body: { error: 'Missing required parameters' } });
+            return;
+          }
+
+          const user = await User.findOne({ where: { telegramId } });
+          if (!user) {
+            resolve({ status: 404, body: { error: 'User not found' } });
+            return;
+          }
+
+          const currentMaxEnergy = user.maxEnergy || 100;
+
+          console.log('Processing energy update:', {
+            telegramId,
+            type,
+            value,
+            currentEnergy: user.energy,
+            currentMaxEnergy
+          });
+
+          if (type === 'refill') {
+            // Восстанавливаем энергию до максимума
+            await user.update({ energy: currentMaxEnergy });
+            
+            console.log('Energy refill successful:', {
+              telegramId,
+              newEnergy: currentMaxEnergy
+            });
+
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                energy: currentMaxEnergy,
+                maxEnergy: currentMaxEnergy
+              }
+            });
+            return;
+          } 
+          
+          if (type === 'capacity') {
+            if (!value) {
+              resolve({ status: 400, body: { error: 'Missing value for capacity update' } });
+              return;
+            }
+
+            const newMaxEnergy = currentMaxEnergy + parseInt(value);
+            await user.update({ 
+              maxEnergy: newMaxEnergy,
+              energy: newMaxEnergy
+            });
+
+            console.log('Energy capacity upgrade successful:', {
+              telegramId,
+              oldMaxEnergy: currentMaxEnergy,
+              newMaxEnergy,
+              increase: value
+            });
+
+            resolve({
+              status: 200,
+              body: { 
+                success: true,
+                energy: newMaxEnergy,
+                maxEnergy: newMaxEnergy
+              }
+            });
+            return;
+          }
+
+          resolve({
+            status: 400,
+            body: { error: 'Invalid energy update type' }
+          });
+
+        } catch (error) {
+          console.error('Error updating energy:', error);
+          resolve({ 
+            status: 500, 
+            body: { 
+              error: 'Failed to update energy',
+              details: error.message 
+            }
+          });
+        }
+      });
+    });
+},
 '/claim-achievement': async (req, res) => {
     const authError = await authMiddleware(req, res);
     if (authError) return authError;
@@ -1760,6 +1862,37 @@ const serveStaticFile = (filePath, res) => {
   });
 };
 
+// Функция очистки с мониторингом памяти
+const cleanupRequestData = () => {
+  try {
+    // Записываем состояние памяти до очистки
+    const beforeClean = process.memoryUsage();
+    
+    // Очищаем временные данные
+    global.gc && global.gc();
+    
+    // Очищаем кэш Redis для rate-limit
+    redis.keys('user-ratelimit:*').then(keys => {
+      if (keys.length) redis.del(...keys);
+    });
+
+    // Проверяем результат очистки
+    const afterClean = process.memoryUsage();
+    const freedMemory = Math.round((beforeClean.heapUsed - afterClean.heapUsed) / 1024 / 1024);
+    
+    if (freedMemory > 0) {
+      console.log(`Memory cleaned: ${freedMemory}MB freed`);
+    }
+    
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
+};
+
+// Запускаем очистку каждый час
+const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 час
+const cleanup = setInterval(cleanupRequestData, CLEANUP_INTERVAL);
+
 const LIMITED_ENDPOINTS = [
   '/get-root-balance',
   '/get-referral-link',
@@ -1906,5 +2039,12 @@ http.createServer((req, res) => {
 });
 
 // Graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+process.once('SIGINT', () => {
+  clearInterval(cleanup);  // Очищаем таймер
+  bot.stop('SIGINT');     // Останавливаем бота
+});
+
+process.once('SIGTERM', () => {
+  clearInterval(cleanup);  // Очищаем таймер
+  bot.stop('SIGTERM');    // Останавливаем бота
+});
