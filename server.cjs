@@ -691,38 +691,6 @@ const routes = {
         return { status: 500, body: { error: 'Failed to create invoice' } };
     }
 },
-'/update-user-modes': async (req, res, query) => {
-    // Только проверка авторизации через authMiddleware
-    const authError = await authMiddleware(req, res);
-    if (authError) return authError;
-
-    const { telegramId, modeName } = query;
-    
-    if (!telegramId || !modeName) {
-        return { status: 400, body: { error: 'Missing required parameters' } };
-    }
-
-    try {
-        const user = await User.findOne({ where: { telegramId } });
-        if (!user) {
-            return { status: 404, body: { error: 'User not found' } };
-        }
-
-        const updatedModes = [...new Set([...user.purchasedModes, modeName])];
-        await user.update({ purchasedModes: updatedModes });
-
-        return { 
-            status: 200, 
-            body: { 
-                success: true,
-                purchasedModes: updatedModes
-            }
-        };
-    } catch (error) {
-        console.error('Error updating user modes:', error);
-        return { status: 500, body: { error: 'Failed to update user modes' } };
-    }
-},
 '/get-user-modes': async (req, res, query) => {
     // Только проверка авторизации
     const authError = await authMiddleware(req, res);
@@ -1090,6 +1058,81 @@ const routes = {
     };
   }
 },
+'/update-user-modes': async (req, res) => {
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+  
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    
+    return new Promise((resolve) => {
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { telegramId, modeName } = data;
+          console.log('Received mode update request:', { telegramId, modeName });
+
+          if (!telegramId || !modeName) {
+            resolve({
+              status: 400,
+              body: { 
+                success: false, 
+                error: 'Missing required parameters' 
+              }
+            });
+            return;
+          }
+
+          const user = await User.findOne({ where: { telegramId } });
+          if (!user) {
+            resolve({
+              status: 404,
+              body: { 
+                success: false, 
+                error: 'User not found' 
+              }
+            });
+            return;
+          }
+
+          // Проверяем, есть ли уже такой мод
+          if (user.purchasedModes.includes(modeName)) {
+            resolve({
+              status: 200,
+              body: {
+                success: true,
+                purchasedModes: user.purchasedModes,
+                message: 'Mode already purchased'
+              }
+            });
+            return;
+          }
+
+          const updatedModes = [...new Set([...user.purchasedModes, modeName])];
+          await user.update({ purchasedModes: updatedModes });
+          console.log('Updated user modes:', { telegramId, updatedModes });
+
+          resolve({
+            status: 200,
+            body: {
+              success: true,
+              purchasedModes: updatedModes
+            }
+          });
+
+        } catch (error) {
+          console.error('Error updating user modes:', error);
+          resolve({
+            status: 500,
+            body: { 
+              success: false, 
+              error: 'Failed to update user modes' 
+            }
+          });
+        }
+      });
+    });
+  },
 '/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
