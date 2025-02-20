@@ -1936,6 +1936,9 @@ const cleanupRequestData = () => {
 const CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 час
 const cleanup = setInterval(cleanupRequestData, CLEANUP_INTERVAL);
 
+// Запускаем первую очистку сразу
+cleanupRequestData();
+
 const LIMITED_ENDPOINTS = [
   '/get-root-balance',
   '/get-referral-link',
