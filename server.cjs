@@ -595,29 +595,29 @@ if (!settings) {
       }
     },
 '/get-settings': async (req, res) => {
-  // Проверяем авторизацию
   const authError = await authMiddleware(req, res);
-  if (authError) {
-    // Если middleware уже отправил ответ, прекращаем выполнение
-    if (!res.headersSent) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-    }
-    return; // Важно: завершаем выполнение
-  }
+  if (authError) return authError; // Возвращаем объект ошибки
 
   try {
     const settings = await Settings.findOne();
     if (!settings) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Settings not found' })); // Добавлен return
+      return { 
+        status: 404, 
+        body: { error: 'Settings not found' } 
+      };
     }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ marqueeActive: settings.marqueeActive })); // Добавлен return
+    
+    return { 
+      status: 200, 
+      body: { marqueeActive: settings.marqueeActive } 
+    };
+    
   } catch (error) {
     console.error('Error fetching settings:', error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Failed to fetch settings' })); // Добавлен return
+    return { 
+      status: 500, 
+      body: { error: 'Failed to fetch settings' } 
+    };
   }
 },
 '/get-referral-count': async (req, res, query) => {
@@ -1181,29 +1181,33 @@ if (!settings) {
     });
   },
 '/admin/update-marquee': async (req, res) => {
-  // Проверяем авторизацию
   const authError = await authMiddleware(req, res);
-  if (authError) {
-    if (!res.headersSent) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Unauthorized' }));
-    }
-    return; // Важно: завершаем выполнение
-  }
+  if (authError) return authError;
 
   try {
     const body = await getRequestBody(req);
     const { marquee } = body;
+    
+    if (typeof marquee !== 'boolean') {
+      return {
+        status: 400,
+        body: { error: 'Invalid marquee parameter' }
+      };
+    }
 
     await Settings.upsert({ marqueeActive: marquee });
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ success: true })); // Добавлен return
+    return { 
+      status: 200, 
+      body: { success: true } 
+    };
+    
   } catch (error) {
     console.error('Error updating marquee:', error);
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Failed to update marquee' })); // Добавлен return
-  }
+    return { 
+      status: 500, 
+      body: { error: 'Failed to update marquee' } 
+    };
+  
 },
 '/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
