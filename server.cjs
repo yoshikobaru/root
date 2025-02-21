@@ -1181,33 +1181,29 @@ if (!settings) {
     });
   },
 '/admin/update-marquee': async (req, res) => {
+  // Проверяем авторизацию
   const authError = await authMiddleware(req, res);
-  if (authError) return authError;
+  if (authError) {
+    if (!res.headersSent) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+    }
+    return; // Важно: завершаем выполнение
+  }
 
   try {
     const body = await getRequestBody(req);
     const { marquee } = body;
-    
-    if (typeof marquee !== 'boolean') {
-      return {
-        status: 400,
-        body: { error: 'Invalid marquee parameter' }
-      };
-    }
 
     await Settings.upsert({ marqueeActive: marquee });
-    return { 
-      status: 200, 
-      body: { success: true } 
-    };
-    
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ success: true })); // Добавлен return
   } catch (error) {
     console.error('Error updating marquee:', error);
-    return { 
-      status: 500, 
-      body: { error: 'Failed to update marquee' } 
-    };
-  
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Failed to update marquee' })); // Добавлен return
+  }
 },
 '/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
