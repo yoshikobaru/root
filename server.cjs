@@ -215,6 +215,15 @@ const ActiveWallet = sequelize.define('ActiveWallet', {
   tableName: 'ActiveWallets' // Явно указываем имя таблицы
 });
 
+const Settings = sequelize.define('Settings', {
+  marqueeActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  }
+ }, {
+    tableName: 'Settings' // Явно указываем имя таблицы
+  });
+
 // Синхронизируем модель с базой данных
 sequelize.sync({ alter: true });
 // Создаем экземпляр бота с вашим токеном
@@ -445,6 +454,8 @@ const routes = {
         user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
       }
 
+      const settings = await Settings.findOne();
+
       return { 
         status: 200, 
         body: {
@@ -455,7 +466,8 @@ const routes = {
             username: user.username,
             referralCode: user.referralCode,
             rootBalance: user.rootBalance,
-            referredBy: user.referredBy
+            referredBy: user.referredBy,
+            marqueeActive: settings.marqueeActive
           }
         }
       };
@@ -578,6 +590,15 @@ const routes = {
         return { status: 500, body: { error: 'Internal server error' } };
       }
     },
+'/get-settings': async (req, res) => {
+  try {
+    const settings = await Settings.findOne();
+    res.status(200).json({ marqueeActive: settings.marqueeActive });
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+},
 '/get-referral-count': async (req, res, query) => {
   // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
@@ -785,7 +806,7 @@ const routes = {
         return { status: 500, body: { error: 'Internal server error' } };
     }
 },
-'/check-admin': async (req, res, query) => {
+'/response': async (req, res, query) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
@@ -803,10 +824,10 @@ const routes = {
 
     return {
       status: 200,
-      body: { isAdmin }
+      body: { response: isAdmin }
     };
   } catch (error) {
-    console.error('Admin check error:', error);
+    console.error('responseadm check error:', error);
     return {
       status: 500,
       body: { error: 'Internal Server Error' }
@@ -1138,6 +1159,36 @@ const routes = {
       });
     });
   },
+'/admin/update-marquee': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { marquee } = data;
+
+        // Обновляем состояние marquee в таблице Settings
+        await Settings.upsert({ marqueeActive: marquee });
+
+        resolve({
+          status: 200,
+          body: { success: true }
+        });
+      } catch (error) {
+        console.error('Error updating marquee:', error);
+        resolve({
+          status: 500,
+          body: { error: 'Failed to update marquee' }
+        });
+      }
+    });
+  });
+},
 '/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
