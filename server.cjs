@@ -597,7 +597,7 @@ if (!settings) {
 '/get-settings': async (req, res) => {
   // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
-  if (authError) return authError;
+  if (authError) return; // Изменено: просто возвращаем, не вызываем authError
 
   try {
     const settings = await Settings.findOne();
@@ -1172,7 +1172,7 @@ if (!settings) {
 '/admin/update-marquee': async (req, res) => {
   // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
-  if (authError) return authError;
+  if (authError) return; // Изменено: просто возвращаем, не вызываем authError
 
   try {
     const body = await getRequestBody(req);
