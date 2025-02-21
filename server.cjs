@@ -216,13 +216,18 @@ const ActiveWallet = sequelize.define('ActiveWallet', {
 });
 
 const Settings = sequelize.define('Settings', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   marqueeActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   }
- }, {
-    tableName: 'Settings' // Явно указываем имя таблицы
-  });
+}, {
+  tableName: 'Settings'
+});
 
 // Синхронизируем модель с базой данных
 sequelize.sync({ alter: true });
@@ -454,10 +459,10 @@ const routes = {
         user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
       }
 
-      let settings = await Settings.findOne();
+      let settings = await Settings.findOne({ where: { id: 1 } });
 if (!settings) {
-  console.log('Settings not found, creating default settings...');
-  settings = await Settings.create({ marqueeActive: false }); // Установите начальное значение по вашему усмотрению
+  console.log('Creating default settings...');
+  settings = await Settings.create({ id: 1, marqueeActive: false }); // Явно задаем id
 }
 
       return { 
@@ -1189,24 +1194,20 @@ if (!settings) {
     const { marquee } = body;
     
     if (typeof marquee !== 'boolean') {
-      return {
-        status: 400,
-        body: { error: 'Invalid marquee parameter' }
-      }; // <-- Закрывающая фигурная скобка
+      return { status: 400, body: { error: 'Invalid marquee parameter' } };
     }
 
-    await Settings.upsert({ marqueeActive: marquee });
-    return { 
-      status: 200, 
-      body: { success: true } 
-    }; // <-- Закрывающая скобка
+    // Указываем условие для поиска записи (например, id: 1)
+    await Settings.upsert(
+      { marqueeActive: marquee },
+      { where: { id: 1 } } // Условие для поиска существующей записи
+    );
+
+    return { status: 200, body: { success: true } };
     
   } catch (error) {
     console.error('Error updating marquee:', error);
-    return { 
-      status: 500, 
-      body: { error: 'Failed to update marquee' } 
-    }; // <-- Закрывающая скобка
+    return { status: 500, body: { error: 'Failed to update marquee' } };
   }
 },
 '/admin/get-wallets': async (req, res) => {
