@@ -454,7 +454,11 @@ const routes = {
         user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
       }
 
-      const settings = await Settings.findOne();
+      let settings = await Settings.findOne();
+if (!settings) {
+  console.log('Settings not found, creating default settings...');
+  settings = await Settings.create({ marqueeActive: false }); // Установите начальное значение по вашему усмотрению
+}
 
       return { 
         status: 200, 
