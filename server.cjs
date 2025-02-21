@@ -595,12 +595,18 @@ if (!settings) {
       }
     },
 '/get-settings': async (req, res) => {
+  // Добавляем проверку авторизации
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
   try {
     const settings = await Settings.findOne();
-    res.status(200).json({ marqueeActive: settings.marqueeActive });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ marqueeActive: settings.marqueeActive }));
   } catch (error) {
     console.error('Error fetching settings:', error);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to fetch settings' }));
   }
 },
 '/get-referral-count': async (req, res, query) => {
