@@ -601,6 +601,10 @@ if (!settings) {
 
   try {
     const settings = await Settings.findOne();
+    if (!settings) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Settings not found' }));
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ marqueeActive: settings.marqueeActive }));
   } catch (error) {
