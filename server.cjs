@@ -1170,34 +1170,24 @@ if (!settings) {
     });
   },
 '/admin/update-marquee': async (req, res) => {
+  // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
-  let body = '';
-  req.on('data', chunk => { body += chunk; });
+  try {
+    const body = await getRequestBody(req);
+    const { marquee } = body;
 
-  return new Promise((resolve) => {
-    req.on('end', async () => {
-      try {
-        const data = JSON.parse(body);
-        const { marquee } = data;
+    // Обновляем состояние marquee в таблице Settings
+    await Settings.upsert({ marqueeActive: marquee });
 
-        // Обновляем состояние marquee в таблице Settings
-        await Settings.upsert({ marqueeActive: marquee });
-
-        resolve({
-          status: 200,
-          body: { success: true }
-        });
-      } catch (error) {
-        console.error('Error updating marquee:', error);
-        resolve({
-          status: 500,
-          body: { error: 'Failed to update marquee' }
-        });
-      }
-    });
-  });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+  } catch (error) {
+    console.error('Error updating marquee:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Failed to update marquee' }));
+  }
 },
 '/admin/get-wallets': async (req, res) => {
   const authError = await authMiddleware(req, res);
