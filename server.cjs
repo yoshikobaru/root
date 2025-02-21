@@ -222,6 +222,9 @@ const bot = new Telegraf(process.env.ROOT_BOT_TOKEN);
 // WebApp URL
 const webAppUrl = 'https://walletfinder.ru';
 
+// Флаг для отслеживания блокировки
+let blockedUsers = new Set();
+
 // Обработчик команды /start
 bot.command('start', async (ctx) => {
   const telegramId = ctx.from.id.toString();
@@ -243,7 +246,6 @@ bot.command('start', async (ctx) => {
         });
       } catch (createError) {
         if (createError.name === 'SequelizeUniqueConstraintError') {
-          // Если пользователь был создан между проверкой и созданием
           user = await User.findOne({ where: { telegramId } });
         } else {
           throw createError;
@@ -259,12 +261,10 @@ bot.command('start', async (ctx) => {
     } else {
       console.log(`User ${telegramId} already exists`);
       
-      // Тихое обновление username если изменился
       if (user.username !== username) {
         await user.update({ username });
       }
       
-      // Тихое обновление реферала если нужно
       if (!user.referredBy && referralCode) {
         const referrer = await User.findOne({ where: { referralCode } });
         if (referrer && referrer.telegramId !== telegramId) {
@@ -274,7 +274,7 @@ bot.command('start', async (ctx) => {
       }
     }
 
-    // Отправляем приветственные сообщения в любом случае
+    // Отправляем приветственные сообщения
     await ctx.reply('I suppose right now you\'re feeling a bit like Alice falling down a rabbit hole? 🐰');
     await new Promise(resolve => setTimeout(resolve, 2000));
     await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes... 💊');
@@ -288,7 +288,14 @@ bot.command('start', async (ctx) => {
     });
 
   } catch (error) {
-    console.error('Error in start command:', error);
+    if (error.response && error.response.error_code === 403) {
+      if (!blockedUsers.has(telegramId)) {
+        console.error(`User ${telegramId} has blocked the bot. Message not sent.`);
+        blockedUsers.add(telegramId); // Добавляем в множество заблокированных
+      }
+    } else {
+      console.error('Error in start command:', error);
+    }
   }
 });
 
