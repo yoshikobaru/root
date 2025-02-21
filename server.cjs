@@ -258,9 +258,7 @@ bot.command('start', async (ctx) => {
           console.log(`User ${telegramId} was referred by ${referrer.telegramId}`);
         }
       }
-    } else {
-      console.log(`User ${telegramId} already exists`);
-      
+    } else {      
       if (user.username !== username) {
         await user.update({ username });
       }
