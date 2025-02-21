@@ -219,7 +219,7 @@ const Settings = sequelize.define('Settings', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true
+    autoIncrement: false
   },
   marqueeActive: {
     type: DataTypes.BOOLEAN,
@@ -459,10 +459,9 @@ const routes = {
         user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
       }
 
-      let settings = await Settings.findOne({ where: { id: 1 } });
+      let settings = await Settings.findByPk(1);
 if (!settings) {
-  console.log('Creating default settings...');
-  settings = await Settings.create({ id: 1, marqueeActive: false }); // Явно задаем id
+  settings = await Settings.create({ id: 1, marqueeActive: false }); // Явно указываем id
 }
 
       return { 
@@ -1197,10 +1196,14 @@ if (!settings) {
       return { status: 400, body: { error: 'Invalid marquee parameter' } };
     }
 
-    // Указываем условие для поиска записи (например, id: 1)
     await Settings.upsert(
-      { marqueeActive: marquee },
-      { where: { id: 1 } } // Условие для поиска существующей записи
+      { 
+        id: 1, // Явно указываем ID
+        marqueeActive: marquee 
+      },
+      { 
+        where: { id: 1 } // Условие поиска
+      }
     );
 
     return { status: 200, body: { success: true } };
