@@ -311,6 +311,15 @@ bot.command('start', async (ctx) => {
   }
 });
 
+// Добавляем обработчик команды /paysupport
+bot.command('paysupport', async (ctx) => {
+  try {
+    await ctx.reply('If you have any issues or questions, please contact our moderator:\n@manager_root_1\n\nWith ❤️,\nRoot Founder.');
+  } catch (error) {
+    console.error('Error in paysupport command:', error);
+  }
+});
+
 // Запускаем бота
 bot.launch();
 bot.on('pre_checkout_query', async (ctx) => {
@@ -694,7 +703,7 @@ if (!settings) {
             'energy_full': 25,
             'capacity_50': 99,
             'capacity_100': 149,
-            'capacity_250': 249
+            'capacity_250': 349
         }
     };
 
