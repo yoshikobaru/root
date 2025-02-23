@@ -15,6 +15,7 @@
     "@ton/ton": "^15.2.1",
     "@tonconnect/sdk": "^3.0.6",
     "@tonconnect/ui-react": "^2.0.11",
+    "@tonsolutions/telemetree-react": "^1.2.14",
     "@vkruglikov/react-telegram-web-app": "^2.1.9",
     "axios": "^1.7.9",
     "bip39": "^3.1.0",
