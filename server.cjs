@@ -700,10 +700,10 @@ if (!settings) {
             'expert': 499
         },
         energy: {
-            'energy_full': 25,
-            'capacity_50': 99,
-            'capacity_100': 149,
-            'capacity_250': 349
+            'energy_full': 49,
+            'capacity_50': 149,
+            'capacity_100': 249,
+            'capacity_250': 499
         }
     };
 
