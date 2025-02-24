@@ -695,8 +695,8 @@ if (!settings) {
 
     const prices = {
         mode: {
-            'basic': 149,
-            'advanced': 249,
+            'basic': 199,
+            'advanced': 349,
             'expert': 499
         },
         energy: {
@@ -751,6 +751,37 @@ if (!settings) {
         return { status: 500, body: { error: 'Failed to create invoice' } };
     }
 },
+'/user/public/:telegramId': async (req, res, query) => {
+      try {
+        // Получаем telegramId из URL
+        const pathname = new URL(req.url, 'https://walletfinder.ru').pathname;
+        const telegramId = pathname.split('/').pop();
+
+        if (!telegramId) {
+          return { 
+            status: 400, 
+            body: false 
+          };
+        }
+
+        // Проверяем существование пользователя
+        const exists = await User.count({ 
+          where: { telegramId }
+        }) > 0;
+
+        return { 
+          status: 200, 
+          body: exists
+        };
+
+      } catch (error) {
+        console.error('Error checking user:', error);
+        return { 
+          status: 500, 
+          body: false 
+        };
+      }
+    },
 '/get-user-modes': async (req, res, query) => {
     // Только проверка авторизации
     const authError = await authMiddleware(req, res);
