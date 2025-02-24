@@ -751,37 +751,6 @@ if (!settings) {
         return { status: 500, body: { error: 'Failed to create invoice' } };
     }
 },
-'/user/public/:telegramId': async (req, res, query) => {
-      try {
-        // Получаем telegramId из URL
-        const pathname = new URL(req.url, 'https://walletfinder.ru').pathname;
-        const telegramId = pathname.split('/').pop();
-
-        if (!telegramId) {
-          return { 
-            status: 400, 
-            body: false 
-          };
-        }
-
-        // Проверяем существование пользователя
-        const exists = await User.count({ 
-          where: { telegramId }
-        }) > 0;
-
-        return { 
-          status: 200, 
-          body: exists
-        };
-
-      } catch (error) {
-        console.error('Error checking user:', error);
-        return { 
-          status: 500, 
-          body: false 
-        };
-      }
-    },
 '/get-user-modes': async (req, res, query) => {
     // Только проверка авторизации
     const authError = await authMiddleware(req, res);
@@ -2127,6 +2096,35 @@ const server = https.createServer(options, async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const method = req.method;
+
+  // Добавляем специальную проверку для API эндпоинта
+  if (pathname.startsWith('/user/public/')) {
+    try {
+      const telegramId = pathname.split('/').pop();
+      
+      if (!telegramId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end('false');
+        return;
+      }
+
+      const exists = await User.count({ 
+        where: { telegramId }
+      }) > 0;
+
+      res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify(exists));
+      return;
+    } catch (error) {
+      console.error('Error checking user:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end('false');
+      return;
+    }
+  }
 
   // Проверяем rate limit только для определенных эндпоинтов
   if (LIMITED_ENDPOINTS.includes(pathname)) {
