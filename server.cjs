@@ -807,16 +807,17 @@ if (!settings) {
       limit: 50
     });
 
-    // Генерируем уникальные аватарки на основе telegramId
     const formattedLeaders = leaders.map((user, index) => {
-      // Используем telegramId для определения стиля аватарки
-      const avatarStyle = parseInt(user.telegramId) % 4; // 4 разных стиля (0-3)
+      const avatarStyle = parseInt(user.telegramId) % 4;
+      
+      // Преобразуем rootBalance в число перед использованием toFixed
+      const balance = parseFloat(user.rootBalance);
       
       return {
         id: user.telegramId,
         username: user.username || 'Anonymous',
-        avatar_style: avatarStyle, // Вместо photo_url теперь отправляем стиль
-        root_balance: Number(user.rootBalance.toFixed(2)),
+        avatar_style: avatarStyle,
+        root_balance: Number(balance.toFixed(2)), // теперь безопасно используем toFixed
         rank: index + 1
       };
     });
