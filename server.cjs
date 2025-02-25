@@ -667,14 +667,21 @@ if (!settings) {
     // Проверяем, есть ли новые доступные награды
     const hasNewRewards = possibleRewardsCount > currentRewardsCount;
 
+    // Если есть новые награды, обновляем счетчик
+    if (hasNewRewards) {
+      await user.update({
+        referralRewardsCount: possibleRewardsCount
+      });
+    }
+
     return { 
       status: 200, 
       body: { 
         success: true,
         count: referralCount,
-        rewardsEarned: currentRewardsCount,
-        nextRewardAt: (currentRewardsCount + 1) * 3,
-        hasNewRewards // добавляем флаг для фронтенда
+        rewardsEarned: possibleRewardsCount,
+        nextRewardAt: (possibleRewardsCount + 1) * 3,
+        hasNewRewards
       } 
     };
   } catch (error) {
