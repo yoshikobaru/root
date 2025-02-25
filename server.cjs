@@ -802,22 +802,29 @@ if (!settings) {
           [Op.gt]: 0
         }
       },
-      attributes: ['telegramId', 'username', 'rootBalance'],
+      attributes: ['telegramId', 'username', 'firstName', 'rootBalance'], // добавили firstName
       order: [['rootBalance', 'DESC']], 
       limit: 50
     });
 
     const formattedLeaders = leaders.map((user, index) => {
-      const avatarStyle = parseInt(user.telegramId) % 4;
+      // Используем firstName если есть, иначе username или Anonymous
+      const displayName = user.firstName || user.username || 'Anonymous';
       
-      // Преобразуем rootBalance в число перед использованием toFixed
+      // Генерируем инициалы из двух первых букв имени
+      const initials = displayName.slice(0, 2).toUpperCase();
+      
+      // Используем telegramId для определения стиля аватарки (0-3)
+      const avatarStyle = Math.abs(parseInt(user.telegramId)) % 4;
+      
       const balance = parseFloat(user.rootBalance);
       
       return {
         id: user.telegramId,
-        username: user.username || 'Anonymous',
+        username: displayName,
+        initials: initials,
         avatar_style: avatarStyle,
-        root_balance: Number(balance.toFixed(2)), // теперь безопасно используем toFixed
+        root_balance: Number(balance.toFixed(2)),
         rank: index + 1
       };
     });
