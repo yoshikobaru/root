@@ -634,7 +634,6 @@ if (!settings) {
   }
 },
 '/get-referral-count': async (req, res, query) => {
-  // Добавляем проверку авторизации
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
@@ -661,17 +660,21 @@ if (!settings) {
       where: { referredBy: user.referralCode }
     });
 
-    // Вычисляем статистику для фронтенда
-    const rewardsEarned = Math.floor(referralCount / 3);
-    const nextRewardAt = (rewardsEarned + 1) * 3;
+    // Используем текущий referralRewardsCount пользователя
+    const currentRewardsCount = user.referralRewardsCount || 0;
+    const possibleRewardsCount = Math.floor(referralCount / 3);
+    
+    // Проверяем, есть ли новые доступные награды
+    const hasNewRewards = possibleRewardsCount > currentRewardsCount;
 
     return { 
       status: 200, 
       body: { 
         success: true,
         count: referralCount,
-        rewardsEarned,
-        nextRewardAt
+        rewardsEarned: currentRewardsCount,
+        nextRewardAt: (currentRewardsCount + 1) * 3,
+        hasNewRewards // добавляем флаг для фронтенда
       } 
     };
   } catch (error) {
@@ -1681,7 +1684,7 @@ if (!settings) {
       });
     });
 },
-  '/create-user': async (req, res) => {
+'/create-user': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
@@ -1739,35 +1742,14 @@ if (!settings) {
                 `🎉 New referral! User ${username} joined using your link!\n\nKeep sharing to earn more rewards!`
               );
 
-              // Получаем количество рефералов
+              // Получаем количество рефералов для лога
               const referralCount = await User.count({
                 where: { referredBy: referrer.referralCode }
               });
-
-              // Проверяем, нужно ли выдать награду
-              const newRewardsCount = Math.floor(referralCount / 3);
-              const currentRewardsCount = referrer.referralRewardsCount || 0;
-
-              if (newRewardsCount > currentRewardsCount) {
-                // Вычисляем количество новых наград
-                const rewardsToGive = newRewardsCount - currentRewardsCount;
-                const rewardAmount = rewardsToGive * 0.5;
-
-                // Обновляем баланс и счетчик наград реферера
-                await referrer.update({
-                  rootBalance: Number((referrer.rootBalance + rewardAmount).toFixed(2)),
-                  referralRewardsCount: newRewardsCount
-                });
-
-                // Отправляем уведомление о награде
-                await bot.telegram.sendMessage(
-                  referrer.telegramId,
-                  `🎯 Congratulations! You've earned ${rewardAmount} ROOT for inviting ${rewardsToGive * 3} friends!\n\nKeep inviting to earn more!`
-                );
-              }
+              console.log(`Current referral count for ${referrer.telegramId}: ${referralCount}`);
 
             } catch (error) {
-              console.error('Failed to process referral rewards:', error);
+              console.error('Failed to send referral notification:', error);
             }
           } else {
             referredBy = null;
