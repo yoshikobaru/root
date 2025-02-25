@@ -5,7 +5,7 @@ const path = require('path');
 const { Telegraf } = require('telegraf');
 const crypto = require('crypto');
 require('dotenv').config();
-const { Sequelize, DataTypes } = require('sequelize');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const url = require('url');
 
 const MIME_TYPES = {
@@ -151,7 +151,8 @@ const User = sequelize.define('User', {
   },
   rootBalance: {
     type: DataTypes.DECIMAL(10, 2), // для хранения значений с 2 знаками после запятой
-    defaultValue: 0
+    defaultValue: 0,
+    index: true
   },
   claimedAchievements: {
     type: DataTypes.JSON,
@@ -790,65 +791,48 @@ if (!settings) {
         return { status: 500, body: { error: 'Failed to get user data' } };
     }
 },
-    '/get-friends-leaderboard': async (req, res, query) => {
-    const telegramId = query.telegramId;
-    
-    if (!telegramId) {
-        return { status: 400, body: { error: 'Missing telegramId parameter' } };
-    }
+'/get-leaderboard': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
 
-    try {
-        // Получаем текущего пользователя
-        const currentUser = await User.findOne({ 
-            where: { telegramId },
-            attributes: ['telegramId', 'username', 'highScore']
-        });
-
-        if (!currentUser) {
-            return { status: 404, body: { error: 'User not found' } };
+  try {
+    const leaders = await User.findAll({
+      where: {
+        rootBalance: {
+          [Op.gt]: 0
         }
+      },
+      attributes: ['telegramId', 'username', 'rootBalance'],
+      order: [['rootBalance', 'DESC']], 
+      limit: 50
+    });
 
-        // Получаем топ-100 игроков с наивысшими рекордами
-        const topPlayers = await User.findAll({
-          where: {
-              highScore: {
-                  [Sequelize.Op.gt]: 0
-              }
-          },
-          attributes: ['telegramId', 'username', 'highScore'],
-          order: [['highScore', 'DESC']],
-          limit: 50  // Уменьшаем лимит до 50
-      });
+    // Генерируем уникальные аватарки на основе telegramId
+    const formattedLeaders = leaders.map((user, index) => {
+      // Используем telegramId для определения стиля аватарки
+      const avatarStyle = parseInt(user.telegramId) % 4; // 4 разных стиля (0-3)
+      
+      return {
+        id: user.telegramId,
+        username: user.username || 'Anonymous',
+        avatar_style: avatarStyle, // Вместо photo_url теперь отправляем стиль
+        root_balance: Number(user.rootBalance.toFixed(2)),
+        rank: index + 1
+      };
+    });
 
-        // Преобразуем данные
-        const leaderboardData = topPlayers.map(player => ({
-            id: player.telegramId,
-            username: player.username,
-            highScore: player.highScore,
-            isCurrentUser: player.telegramId === telegramId
-        }));
+    return {
+      status: 200,
+      body: formattedLeaders
+    };
 
-        // Если текущий пользователь не в топ-100, добавляем его отдельно
-        if (!leaderboardData.some(player => player.isCurrentUser)) {
-            leaderboardData.push({
-                id: currentUser.telegramId,
-                username: currentUser.username,
-                highScore: currentUser.highScore,
-                isCurrentUser: true
-            });
-        }
-
-        return { 
-            status: 200, 
-            body: { 
-                leaderboard: leaderboardData,
-                timestamp: Date.now()
-            } 
-        };
-    } catch (error) {
-        console.error('Error getting leaderboard:', error);
-        return { status: 500, body: { error: 'Internal server error' } };
-    }
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    return {
+      status: 500,
+      body: { error: 'Failed to fetch leaderboard' }
+    };
+  }
 },
 '/response': async (req, res, query) => {
   const authError = await authMiddleware(req, res);
