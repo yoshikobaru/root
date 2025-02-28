@@ -154,6 +154,11 @@ const User = sequelize.define('User', {
     defaultValue: 0,
     index: true
   },
+  lastTrial: {
+    type: DataTypes.BIGINT,  // Используем BIGINT для timestamp
+    allowNull: true,
+    defaultValue: null
+  },
   claimedAchievements: {
     type: DataTypes.JSON,
     defaultValue: '[]'
@@ -926,6 +931,43 @@ if (!settings) {
       };
     }
   },
+  '/get-trial-status': async (req, res, query) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  const { telegramId } = query;
+  
+  if (!telegramId) {
+    return { 
+      status: 400, 
+      body: { error: 'Missing telegramId parameter' } 
+    };
+  }
+
+  try {
+    const user = await User.findOne({ where: { telegramId } });
+    if (!user) {
+      return { 
+        status: 404, 
+        body: { error: 'User not found' } 
+      };
+    }
+
+    return { 
+      status: 200, 
+      body: { 
+        success: true,
+        lastTrial: user.lastTrial 
+      } 
+    };
+  } catch (error) {
+    console.error('Error getting trial status:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Failed to get trial status' } 
+    };
+  }
+},
 '/reward': async (req, res, query) => {
     const telegramId = query.userid;
     
@@ -1676,6 +1718,59 @@ if (!settings) {
       });
     });
 },
+'/update-trial-status': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { telegramId, lastTrial } = data;
+
+        if (!telegramId) {
+          resolve({ 
+            status: 400, 
+            body: { error: 'Missing telegramId parameter' } 
+          });
+          return;
+        }
+
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          resolve({ 
+            status: 404, 
+            body: { error: 'User not found' } 
+          });
+          return;
+        }
+
+        await user.update({ lastTrial });
+
+        // Компактный лог с эмодзи и форматированным временем
+        console.log(`🎯 Trial ${lastTrial ? 'started' : 'ended'}: ${telegramId} | ${user.username || 'no_username'} | ${lastTrial ? new Date(lastTrial).toLocaleString() : 'reset'}`);
+
+        resolve({
+          status: 200,
+          body: {
+            success: true,
+            lastTrial: user.lastTrial
+          }
+        });
+
+      } catch (error) {
+        console.error('Error updating trial status:', error);
+        resolve({ 
+          status: 500, 
+          body: { error: 'Failed to update trial status' } 
+        });
+      }
+    });
+  });
+},
 '/create-user': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
@@ -1711,7 +1806,8 @@ if (!settings) {
                 username: user.username,
                 referralCode: user.referralCode,
                 rootBalance: user.rootBalance,
-                referredBy: user.referredBy
+                referredBy: user.referredBy,
+                lastTrial: null
               }
             }
           });
