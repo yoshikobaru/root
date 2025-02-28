@@ -297,7 +297,7 @@ bot.command('start', async (ctx) => {
       }
     }
 
-    // Отправляем приветственные сообщения
+    // Отправляем приветственные смс
     await ctx.reply('I suppose right now you\'re feeling a bit like Alice falling down a rabbit hole? 🐰');
     await new Promise(resolve => setTimeout(resolve, 2000));
     await ctx.reply('Take the red pill, stay in Wonderland, and I\'ll show you how deep the rabbit hole goes... 💊');
