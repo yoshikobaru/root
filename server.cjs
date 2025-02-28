@@ -706,7 +706,7 @@ if (!settings) {
 
     const prices = {
         mode: {
-            'basic': 199,
+            'basic': 149,
             'advanced': 349,
             'expert': 499
         },
