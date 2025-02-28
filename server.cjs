@@ -940,7 +940,9 @@ if (!settings) {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
-  const { telegramId } = query;
+  // Правильно получаем параметры из URL
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const telegramId = url.searchParams.get('telegramId');
   
   if (!telegramId) {
     return { 
@@ -963,7 +965,7 @@ if (!settings) {
       body: { 
         success: true,
         lastTrial: user.lastTrial,
-        trialStatus: user.trialStatus,
+        status: user.trialStatus, // Изменили trialStatus на status для консистентности
         purchasedModes: user.purchasedModes
       } 
     };
