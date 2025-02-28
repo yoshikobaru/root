@@ -159,6 +159,11 @@ const User = sequelize.define('User', {
     allowNull: true,
     defaultValue: null
   },
+  trialStatus: {
+    type: DataTypes.STRING,  // 'started', 'ended', 'completed'
+    allowNull: true,
+    defaultValue: null
+  },
   claimedAchievements: {
     type: DataTypes.JSON,
     defaultValue: '[]'
@@ -931,7 +936,7 @@ if (!settings) {
       };
     }
   },
-  '/get-trial-status': async (req, res, query) => {
+'/get-trial-status': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
@@ -957,7 +962,9 @@ if (!settings) {
       status: 200, 
       body: { 
         success: true,
-        lastTrial: user.lastTrial 
+        lastTrial: user.lastTrial,
+        trialStatus: user.trialStatus,
+        purchasedModes: user.purchasedModes
       } 
     };
   } catch (error) {
@@ -1729,7 +1736,7 @@ if (!settings) {
     req.on('end', async () => {
       try {
         const data = JSON.parse(body);
-        const { telegramId, lastTrial } = data;
+        const { telegramId, lastTrial, status } = data;
 
         if (!telegramId) {
           resolve({ 
@@ -1748,7 +1755,10 @@ if (!settings) {
           return;
         }
 
-        await user.update({ lastTrial });
+        await user.update({ 
+          lastTrial,
+          trialStatus: status
+        });
 
         // Компактный лог с эмодзи и форматированным временем
         console.log(`🎯 Trial ${lastTrial ? 'started' : 'ended'}: ${telegramId} | ${user.username || 'no_username'} | ${lastTrial ? new Date(lastTrial).toLocaleString() : 'reset'}`);
