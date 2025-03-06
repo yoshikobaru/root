@@ -821,41 +821,43 @@ if (!settings) {
       limit: 50
     });
 
-    // Если пользователь не в топ 50, найдем его позицию
+    // Проверяем, есть ли пользователь в топ 50
+    const isUserInTop50 = leaders.some(user => user.telegramId === currentUserId);
+    
     let userRank = null;
-    if (!leaders.find(user => user.telegramId === currentUserId)) {
-      const userPosition = await User.count({
-        where: {
-          rootBalance: {
-            [Op.gt]: (await User.findOne({
-              where: { telegramId: currentUserId },
-              attributes: ['rootBalance']
-            }))?.rootBalance || 0
-          }
-        }
+    
+    // Ищем позицию пользователя только если он не в топ 50 и у нас есть его id
+    if (!isUserInTop50 && currentUserId) {
+      const currentUser = await User.findOne({
+        where: { telegramId: currentUserId }
       });
-      userRank = userPosition + 1;
+
+      if (currentUser) {
+        const userPosition = await User.count({
+          where: {
+            rootBalance: {
+              [Op.gt]: currentUser.rootBalance
+            }
+          }
+        });
+        userRank = userPosition + 1;
+      }
     }
 
-    const formattedLeaders = leaders.map((user, index) => {
-      const avatarStyle = parseInt(user.telegramId) % 4;
-      const balance = parseFloat(user.rootBalance);
-      
-      return {
-        id: user.telegramId,
-        username: user.username || 'Anonymous',
-        avatar_style: avatarStyle,
-        root_balance: Number(balance.toFixed(2)),
-        rank: index + 1,
-        isCurrentUser: user.telegramId === currentUserId
-      };
-    });
+    const formattedLeaders = leaders.map((user, index) => ({
+      id: user.telegramId,
+      username: user.username || 'Anonymous',
+      avatar_style: parseInt(user.telegramId) % 4,
+      root_balance: Number(parseFloat(user.rootBalance).toFixed(2)),
+      rank: index + 1,
+      isCurrentUser: user.telegramId === currentUserId
+    }));
 
     return {
       status: 200,
       body: {
         leaders: formattedLeaders,
-        userRank: userRank // будет null если пользователь в топ 50
+        userRank: userRank // будет null если пользователь в топ 50 или не найден
       }
     };
 
