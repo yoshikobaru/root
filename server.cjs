@@ -807,9 +807,28 @@ if (!settings) {
 
   try {
     const currentUserId = req.telegramId;
-    let currentUserData = null;
+    let userPosition = null;
 
-    // Получаем топ 50 независимо от текущего пользователя
+    // Если есть текущий пользователь, сначала определяем его позицию
+    if (currentUserId) {
+      const currentUser = await User.findOne({
+        where: { telegramId: currentUserId },
+        attributes: ['rootBalance']
+      });
+      
+      if (currentUser) {
+        // Эффективный запрос - просто считаем записи с более высоким балансом
+        userPosition = await User.count({
+          where: {
+            rootBalance: {
+              [Op.gt]: currentUser.rootBalance
+            }
+          }
+        });
+      }
+    }
+
+    // Получаем только топ-50 для отображения
     const leaders = await User.findAll({
       where: {
         rootBalance: {
@@ -830,39 +849,14 @@ if (!settings) {
       isCurrentUser: user.telegramId === currentUserId
     }));
 
-    // Если есть currentUserId и пользователь не в топ 50, получаем его данные
-    if (currentUserId && !leaders.find(u => u.telegramId === currentUserId)) {
-      const currentUser = await User.findOne({
-        where: { telegramId: currentUserId },
-        attributes: ['telegramId', 'username', 'rootBalance']
-      });
-
-      if (currentUser) {
-        // Считаем позицию пользователя
-        const userPosition = await User.count({
-          where: {
-            rootBalance: {
-              [Op.gt]: currentUser.rootBalance
-            }
-          }
-        });
-
-        currentUserData = {
-          id: currentUser.telegramId,
-          username: currentUser.username || 'Anonymous',
-          avatar_style: parseInt(currentUser.telegramId) % 4,
-          root_balance: Number(parseFloat(currentUser.rootBalance).toFixed(2)),
-          rank: userPosition + 1,
-          isCurrentUser: true
-        };
-      }
-    }
+    // Добавляем информацию о позиции текущего пользователя
+    const currentUserRank = userPosition !== null ? userPosition + 1 : null;
 
     return {
       status: 200,
       body: {
         leaders: formattedLeaders,
-        currentUser: currentUserData
+        currentUserRank
       }
     };
 
