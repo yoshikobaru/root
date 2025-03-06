@@ -807,23 +807,9 @@ if (!settings) {
 
   try {
     const currentUserId = req.telegramId;
+    let currentUserData = null;
 
-    // Сначала получим данные текущего пользователя
-    const currentUser = await User.findOne({
-      where: { telegramId: currentUserId },
-      attributes: ['telegramId', 'username', 'rootBalance']
-    });
-
-    // Получаем позицию текущего пользователя
-    const userPosition = currentUser ? await User.count({
-      where: {
-        rootBalance: {
-          [Op.gt]: currentUser.rootBalance
-        }
-      }
-    }) : null;
-
-    // Получаем топ 50
+    // Получаем топ 50 независимо от текущего пользователя
     const leaders = await User.findAll({
       where: {
         rootBalance: {
@@ -844,15 +830,33 @@ if (!settings) {
       isCurrentUser: user.telegramId === currentUserId
     }));
 
-    // Если пользователь не в топ 50, добавляем его данные отдельно
-    const currentUserData = currentUser && !leaders.find(u => u.telegramId === currentUserId) ? {
-      id: currentUser.telegramId,
-      username: currentUser.username || 'Anonymous',
-      avatar_style: parseInt(currentUser.telegramId) % 4,
-      root_balance: Number(parseFloat(currentUser.rootBalance).toFixed(2)),
-      rank: userPosition + 1,
-      isCurrentUser: true
-    } : null;
+    // Если есть currentUserId и пользователь не в топ 50, получаем его данные
+    if (currentUserId && !leaders.find(u => u.telegramId === currentUserId)) {
+      const currentUser = await User.findOne({
+        where: { telegramId: currentUserId },
+        attributes: ['telegramId', 'username', 'rootBalance']
+      });
+
+      if (currentUser) {
+        // Считаем позицию пользователя
+        const userPosition = await User.count({
+          where: {
+            rootBalance: {
+              [Op.gt]: currentUser.rootBalance
+            }
+          }
+        });
+
+        currentUserData = {
+          id: currentUser.telegramId,
+          username: currentUser.username || 'Anonymous',
+          avatar_style: parseInt(currentUser.telegramId) % 4,
+          root_balance: Number(parseFloat(currentUser.rootBalance).toFixed(2)),
+          rank: userPosition + 1,
+          isCurrentUser: true
+        };
+      }
+    }
 
     return {
       status: 200,
