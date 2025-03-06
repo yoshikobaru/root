@@ -801,19 +801,19 @@ if (!settings) {
         return { status: 500, body: { error: 'Failed to get user data' } };
     }
 },
-'/get-leaderboard': async (req, res) => {
+'/get-leaderboard': async (req, res, query) => {  // добавляем query параметр
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
 
   try {
-    const currentUserId = req.telegramId;
+    const currentUserId = query.telegramId;  // получаем из query вместо req.telegramId
     let userPosition = null;
 
     // Если есть текущий пользователь, сначала определяем его позицию
     if (currentUserId) {
       const currentUser = await User.findOne({
         where: { telegramId: currentUserId },
-        attributes: ['rootBalance']
+        attributes: ['telegramId', 'username', 'rootBalance']
       });
       
       if (currentUser) {
@@ -825,10 +825,19 @@ if (!settings) {
             }
           }
         });
+
+        // Добавляем данные текущего пользователя
+        currentUserData = {
+          id: currentUser.telegramId,
+          username: currentUser.username || 'Anonymous',
+          avatar_style: parseInt(currentUser.telegramId) % 4,
+          root_balance: Number(parseFloat(currentUser.rootBalance).toFixed(2)),
+          rank: userPosition + 1
+        };
       }
     }
 
-    // Получаем только топ-50 для отображения
+    // Получаем топ-50
     const leaders = await User.findAll({
       where: {
         rootBalance: {
@@ -849,14 +858,12 @@ if (!settings) {
       isCurrentUser: user.telegramId === currentUserId
     }));
 
-    // Добавляем информацию о позиции текущего пользователя
-    const currentUserRank = userPosition !== null ? userPosition + 1 : null;
-
     return {
       status: 200,
       body: {
         leaders: formattedLeaders,
-        currentUserRank
+        currentUser: currentUserData,
+        currentUserRank: userPosition !== null ? userPosition + 1 : null
       }
     };
 
