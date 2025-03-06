@@ -806,6 +806,10 @@ if (!settings) {
   if (authError) return authError;
 
   try {
+    // Получаем текущего пользователя из auth middleware
+    const currentUserId = req.telegramId;
+
+    // Получаем топ 50
     const leaders = await User.findAll({
       where: {
         rootBalance: {
@@ -817,24 +821,42 @@ if (!settings) {
       limit: 50
     });
 
+    // Если пользователь не в топ 50, найдем его позицию
+    let userRank = null;
+    if (!leaders.find(user => user.telegramId === currentUserId)) {
+      const userPosition = await User.count({
+        where: {
+          rootBalance: {
+            [Op.gt]: (await User.findOne({
+              where: { telegramId: currentUserId },
+              attributes: ['rootBalance']
+            }))?.rootBalance || 0
+          }
+        }
+      });
+      userRank = userPosition + 1;
+    }
+
     const formattedLeaders = leaders.map((user, index) => {
       const avatarStyle = parseInt(user.telegramId) % 4;
-      
-      // Преобразуем rootBalance в число перед использованием toFixed
       const balance = parseFloat(user.rootBalance);
       
       return {
         id: user.telegramId,
         username: user.username || 'Anonymous',
         avatar_style: avatarStyle,
-        root_balance: Number(balance.toFixed(2)), // теперь безопасно используем toFixed
-        rank: index + 1
+        root_balance: Number(balance.toFixed(2)),
+        rank: index + 1,
+        isCurrentUser: user.telegramId === currentUserId
       };
     });
 
     return {
       status: 200,
-      body: formattedLeaders
+      body: {
+        leaders: formattedLeaders,
+        userRank: userRank // будет null если пользователь в топ 50
+      }
     };
 
   } catch (error) {
