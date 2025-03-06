@@ -806,8 +806,22 @@ if (!settings) {
   if (authError) return authError;
 
   try {
-    // Получаем текущего пользователя из auth middleware
     const currentUserId = req.telegramId;
+
+    // Сначала получим данные текущего пользователя
+    const currentUser = await User.findOne({
+      where: { telegramId: currentUserId },
+      attributes: ['telegramId', 'username', 'rootBalance']
+    });
+
+    // Получаем позицию текущего пользователя
+    const userPosition = currentUser ? await User.count({
+      where: {
+        rootBalance: {
+          [Op.gt]: currentUser.rootBalance
+        }
+      }
+    }) : null;
 
     // Получаем топ 50
     const leaders = await User.findAll({
@@ -821,29 +835,6 @@ if (!settings) {
       limit: 50
     });
 
-    // Проверяем, есть ли пользователь в топ 50
-    const isUserInTop50 = leaders.some(user => user.telegramId === currentUserId);
-    
-    let userRank = null;
-    
-    // Ищем позицию пользователя только если он не в топ 50 и у нас есть его id
-    if (!isUserInTop50 && currentUserId) {
-      const currentUser = await User.findOne({
-        where: { telegramId: currentUserId }
-      });
-
-      if (currentUser) {
-        const userPosition = await User.count({
-          where: {
-            rootBalance: {
-              [Op.gt]: currentUser.rootBalance
-            }
-          }
-        });
-        userRank = userPosition + 1;
-      }
-    }
-
     const formattedLeaders = leaders.map((user, index) => ({
       id: user.telegramId,
       username: user.username || 'Anonymous',
@@ -853,11 +844,21 @@ if (!settings) {
       isCurrentUser: user.telegramId === currentUserId
     }));
 
+    // Если пользователь не в топ 50, добавляем его данные отдельно
+    const currentUserData = currentUser && !leaders.find(u => u.telegramId === currentUserId) ? {
+      id: currentUser.telegramId,
+      username: currentUser.username || 'Anonymous',
+      avatar_style: parseInt(currentUser.telegramId) % 4,
+      root_balance: Number(parseFloat(currentUser.rootBalance).toFixed(2)),
+      rank: userPosition + 1,
+      isCurrentUser: true
+    } : null;
+
     return {
       status: 200,
       body: {
         leaders: formattedLeaders,
-        userRank: userRank // будет null если пользователь в топ 50 или не найден
+        currentUser: currentUserData
       }
     };
 
