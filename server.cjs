@@ -471,41 +471,57 @@ const routes = {
 
     let user = await User.findOne({ where: { telegramId } });
     
-    if (user) {
+    // Если пользователь не найден - создаем его (как в обработчике /start)
+    if (!user) {
+      const username = userData.username || userData.first_name || `user_${telegramId}`;
+      const newReferralCode = crypto.randomBytes(4).toString('hex');
+      
+      try {
+        user = await User.create({
+          telegramId,
+          username,
+          referralCode: newReferralCode,
+          referredBy: query.ref || null  // Опционально: поддержка реферальных кодов
+        });
+      } catch (createError) {
+        if (createError.name === 'SequelizeUniqueConstraintError') {
+          user = await User.findOne({ where: { telegramId } });
+        } else {
+          console.error('Error creating user:', createError);
+          return { 
+            status: 500, 
+            body: { error: 'Failed to create user' } 
+          };
+        }
+      }
+    } else {
       // Проверяем наличие реферального кода
       if (!user.referralCode) {
-        const newReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const newReferralCode = crypto.randomBytes(4).toString('hex');
         await user.update({ referralCode: newReferralCode });
-        user = await User.findOne({ where: { telegramId } }); // Получаем обновленного пользователя
+        user = await User.findOne({ where: { telegramId } });
       }
-
-      let settings = await Settings.findByPk(1);
-if (!settings) {
-  settings = await Settings.create({ id: 1, marqueeActive: false }); // Явно указываем id
-}
-
-      return { 
-        status: 200, 
-        body: {
-          success: true,
-          user: {
-            id: user.id,
-            telegramId: user.telegramId,
-            username: user.username,
-            referralCode: user.referralCode,
-            rootBalance: user.rootBalance,
-            referredBy: user.referredBy,
-            marqueeActive: settings.marqueeActive
-          }
-        }
-      };
     }
+
+    let settings = await Settings.findByPk(1);
+    if (!settings) {
+      settings = await Settings.create({ id: 1, marqueeActive: false });
+    }
+
     return { 
-      status: 404, 
-      body: { 
-        success: false,
-        error: 'User not found' 
-      } 
+      status: 200, 
+      body: {
+        success: true,
+        user: {
+          id: user.id,
+          telegramId: user.telegramId,
+          username: user.username,
+          referralCode: user.referralCode,
+          rootBalance: user.rootBalance,
+          referredBy: user.referredBy,
+          marqueeActive: settings.marqueeActive
+        }
+      }
     };
   } catch (error) {
     console.error('Error getting user:', error);
