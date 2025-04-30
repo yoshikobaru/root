@@ -185,6 +185,10 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  game2048Access: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   lastAdWatchTime: {
     type: DataTypes.DATE,
     allowNull: true
@@ -980,6 +984,26 @@ const routes = {
         status: 500,
         body: { error: 'Failed to get stats' }
       };
+    }
+  },
+  '/get-game-access': async (req, res, query) => {
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+
+    const telegramId = query.telegramId;
+    if (!telegramId) {
+      return { status: 400, body: { error: 'Missing telegramId parameter' } };
+    }
+
+    try {
+      const user = await User.findOne({ where: { telegramId } });
+      if (!user) {
+        return { status: 404, body: { error: 'User not found' } };
+      }
+      return { status: 200, body: { success: true, access: !!user.game2048Access } };
+    } catch (error) {
+      console.error('Error getting game access:', error);
+      return { status: 500, body: { error: 'Internal server error' } };
     }
   },
 '/get-trial-status': async (req, res) => {
@@ -1945,6 +1969,36 @@ const routes = {
     });
   });
 },
+'/set-game-access': async (req, res) => {
+    const authError = await authMiddleware(req, res);
+    if (authError) return authError;
+
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+
+    return new Promise((resolve) => {
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          const { telegramId, access } = data;
+          if (!telegramId || typeof access !== 'boolean') {
+            resolve({ status: 400, body: { error: 'Missing or invalid parameters' } });
+            return;
+          }
+          const user = await User.findOne({ where: { telegramId } });
+          if (!user) {
+            resolve({ status: 404, body: { error: 'User not found' } });
+            return;
+          }
+          await user.update({ game2048Access: access });
+          resolve({ status: 200, body: { success: true } });
+        } catch (error) {
+          console.error('Error setting game access:', error);
+          resolve({ status: 500, body: { error: 'Internal server error' } });
+        }
+      });
+    });
+  },
 '/admin/add-wallet': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
