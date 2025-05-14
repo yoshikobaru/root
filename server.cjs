@@ -164,6 +164,10 @@ const User = sequelize.define('User', {
     allowNull: true,
     defaultValue: null
   },
+  lastReward: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   claimedAchievements: {
     type: DataTypes.JSON,
     defaultValue: '[]'
@@ -1006,6 +1010,53 @@ const routes = {
       return { status: 500, body: { error: 'Internal server error' } };
     }
   },
+  '/check-reward-time': async (req, res, query) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
+
+  const telegramId = query.telegramId;
+  
+  if (!telegramId) {
+    return { 
+      status: 400, 
+      body: { error: 'Missing telegramId parameter' } 
+    };
+  }
+
+  try {
+    const user = await User.findOne({ where: { telegramId } });
+    if (!user) {
+      return { 
+        status: 404, 
+        body: { error: 'User not found' } 
+      };
+    }
+
+    // Получаем серверное время
+    const serverTime = new Date();
+    const today = serverTime.toISOString().split('T')[0];
+
+    // Проверяем последнюю награду
+    const lastReward = user.lastReward ? new Date(user.lastReward) : null;
+    const hasRewardedToday = lastReward && 
+      lastReward.toISOString().split('T')[0] === today;
+
+    return { 
+      status: 200, 
+      body: { 
+        success: true,
+        hasRewardedToday,
+        serverTime: serverTime.toISOString()
+      } 
+    };
+  } catch (error) {
+    console.error('Error checking reward time:', error);
+    return { 
+      status: 500, 
+      body: { error: 'Failed to check reward time' } 
+    };
+  }
+},
 '/get-trial-status': async (req, res) => {
   const authError = await authMiddleware(req, res);
   if (authError) return authError;
@@ -1706,7 +1757,55 @@ const routes = {
       });
     });
   }, // Закрываем claim-achievement
+'/update-last-reward': async (req, res) => {
+  const authError = await authMiddleware(req, res);
+  if (authError) return authError;
 
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  
+  return new Promise((resolve) => {
+    req.on('end', async () => {
+      try {
+        const data = JSON.parse(body);
+        const { telegramId } = data;
+        
+        if (!telegramId) {
+          resolve({ 
+            status: 400, 
+            body: { error: 'Missing telegramId parameter' } 
+          });
+          return;
+        }
+
+        const user = await User.findOne({ where: { telegramId } });
+        if (!user) {
+          resolve({ 
+            status: 404, 
+            body: { error: 'User not found' } 
+          });
+          return;
+        }
+
+        await user.update({ lastReward: new Date() });
+
+        resolve({
+          status: 200,
+          body: { 
+            success: true,
+            lastReward: user.lastReward
+          }
+        });
+      } catch (error) {
+        console.error('Error updating last reward:', error);
+        resolve({ 
+          status: 500, 
+          body: { error: 'Failed to update last reward' } 
+        });
+      }
+    });
+  });
+},
 '/update-wallet-status': async (req, res) => {
     console.log('🚀 Notification handler started');
     
