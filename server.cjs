@@ -1786,11 +1786,11 @@ const routes = {
           {
             where: {
               telegramId,
-              [User.sequelize.Op.or]: [
+              [Op.or]: [
                 { lastReward: null },
-                User.sequelize.where(
-                  User.sequelize.fn('to_char', User.sequelize.col('lastReward'), 'YYYY-MM-DD'),
-                  { [User.sequelize.Op.ne]: today }
+                Sequelize.where(
+                  Sequelize.fn('to_char', Sequelize.col('lastReward'), 'YYYY-MM-DD'),
+                  { [Op.ne]: today }
                 )
               ]
             }
