@@ -1778,16 +1778,36 @@ const routes = {
           return;
         }
 
-        const user = await User.findOne({ where: { telegramId } });
-        if (!user) {
-          resolve({ 
-            status: 404, 
-            body: { error: 'User not found' } 
+        // Получаем сегодняшнюю дату в формате YYYY-MM-DD
+        const today = new Date().toISOString().split('T')[0];
+        // Атомарно обновляем lastReward, только если не сегодня
+        const [updated] = await User.update(
+          { lastReward: new Date() },
+          {
+            where: {
+              telegramId,
+              [User.sequelize.Op.or]: [
+                { lastReward: null },
+                User.sequelize.where(
+                  User.sequelize.fn('to_char', User.sequelize.col('lastReward'), 'YYYY-MM-DD'),
+                  { [User.sequelize.Op.ne]: today }
+                )
+              ]
+            }
+          }
+        );
+
+        if (updated === 0) {
+          // Уже получал сегодня
+          resolve({
+            status: 400,
+            body: { error: 'Reward already claimed today' }
           });
           return;
         }
 
-        await user.update({ lastReward: new Date() });
+        // Получаем обновленного пользователя для возврата времени
+        const user = await User.findOne({ where: { telegramId } });
 
         resolve({
           status: 200,
