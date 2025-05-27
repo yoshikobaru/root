@@ -697,7 +697,8 @@ const routes = {
 
     // Используем текущий referralRewardsCount пользователя
     const currentRewardsCount = user.referralRewardsCount || 0;
-    const possibleRewardsCount = Math.floor(referralCount / 3);
+    // Теперь награда выдается за каждого реферала
+    const possibleRewardsCount = referralCount;
     
     // Проверяем, есть ли новые доступные награды
     const hasNewRewards = possibleRewardsCount > currentRewardsCount;
@@ -715,7 +716,7 @@ const routes = {
         success: true,
         count: referralCount,
         rewardsEarned: possibleRewardsCount,
-        nextRewardAt: (possibleRewardsCount + 1) * 3,
+        nextRewardAt: possibleRewardsCount + 1,
         hasNewRewards
       } 
     };
