@@ -359,12 +359,19 @@ bot.on('successful_payment', async (ctx) => {
     const payload = payment.invoice_payload;
     console.log('Full payload:', payload);
 
-    // Правильно разбираем payload для capacity
+    // Правильно разбираем payload для разных типов покупок
     let type, telegramId, itemId, amount;
     if (payload.includes('capacity_')) {
       [type, telegramId, _, amount] = payload.split('_');
       amount = parseInt(amount); // преобразуем в число
       console.log('Parsed capacity payment:', { type, telegramId, amount });
+    } else if (payload.includes('support_')) {
+      // Для поддержки: support_telegramId_support_stars_amount_timestamp
+      const parts = payload.split('_');
+      type = parts[0]; // 'support'
+      telegramId = parts[1];
+      itemId = parts.slice(2).join('_'); // 'support_stars_amount_timestamp'
+      console.log('Parsed support payment:', { type, telegramId, itemId });
     } else {
       [type, telegramId, itemId] = payload.split('_');
       console.log('Parsed regular payment:', { type, telegramId, itemId });
@@ -396,6 +403,10 @@ bot.on('successful_payment', async (ctx) => {
       const updatedModes = [...new Set([...user.purchasedModes, itemId])];
       await user.update({ purchasedModes: updatedModes });
       await ctx.reply(`✨ Mode ${itemId} unlocked successfully!`);
+    } else if (type === 'support') {
+      // Обработка покупок поддержки
+      console.log('Support purchase completed:', { telegramId, itemId });
+      await ctx.reply(`🚀 Thank you for supporting RootBTC! Your contribution helps us grow! 💎`);
     }
   } catch (error) {
     console.error('Error in successful_payment:', error);
@@ -750,6 +761,9 @@ const routes = {
             'capacity_50': 149,
             'capacity_100': 249,
             'capacity_250': 499
+        },
+        support: {
+            // Динамические цены для поддержки - будут извлечены из itemId
         }
     };
 
@@ -764,10 +778,11 @@ const routes = {
             return { status: 400, body: { error: 'Mode already purchased' } };
         }
 
-        let title, description;
+        let title, description, price;
         if (type === 'mode') {
             title = 'ROOTBTC Mode Upgrade';
             description = `Upgrade to ${itemId.charAt(0).toUpperCase() + itemId.slice(1)} mode`;
+            price = prices[type][itemId];
         } else if (type === 'energy') {
             if (itemId === 'energy_full') {
                 title = 'Energy Refill';
@@ -777,6 +792,20 @@ const routes = {
                 title = 'Energy Capacity Upgrade';
                 description = `Increase maximum energy by ${amount}%`;
             }
+            price = prices[type][itemId];
+        } else if (type === 'support') {
+            // Для поддержки извлекаем цену из itemId
+            const match = itemId.match(/support_stars_(\d+)_/);
+            if (!match) {
+                return { status: 400, body: { error: 'Invalid support itemId format' } };
+            }
+            price = parseInt(match[1]);
+            title = 'ROOTBTC Support';
+            description = `Support RootBTC project with ${price} stars`;
+        }
+
+        if (!price) {
+            return { status: 400, body: { error: 'Price not found for this item' } };
         }
 
         const invoice = await bot.telegram.createInvoiceLink({
@@ -787,7 +816,7 @@ const routes = {
             currency: 'XTR',
             prices: [{
                 label: '⭐️ Purchase',
-                amount: prices[type][itemId]
+                amount: price
             }]
         });
 
@@ -1448,15 +1477,19 @@ const routes = {
         }
 
         // Проверяем валидность itemId в зависимости от типа
-        const isValidItemId = type === 'energy' ? 
+        const isValidItemId = type === 'energy' ?
           (itemId === 'energy_full' || itemId.match(/^capacity_\d+$/)) :
-          ['basic', 'advanced', 'expert'].includes(itemId);
+          type === 'mode' ?
+          ['basic', 'advanced', 'expert'].includes(itemId) :
+          type === 'support' ?
+          (itemId.startsWith('support_stars_') || itemId.startsWith('support_ton_')) :
+          false;
 
         if (!isValidItemId) {
           console.error(`Invalid ${type} format:`, itemId);
-          resolve({ 
-            status: 400, 
-            body: { error: `Invalid ${type} format: ${itemId}` } 
+          resolve({
+            status: 400,
+            body: { error: `Invalid ${type} format: ${itemId}` }
           });
           return;
         }
@@ -1581,6 +1614,28 @@ const routes = {
               }
             });
           }
+          return;
+        }
+
+        if (type === 'support') {
+          // Обработка покупок поддержки
+          console.log('Processing support purchase:', {
+            telegramId,
+            itemId,
+            userAddress
+          });
+
+          resolve({
+            status: 200,
+            body: {
+              success: true,
+              message: 'Support purchase processed successfully',
+              user: {
+                telegramId: user.telegramId,
+                userAddress
+              }
+            }
+          });
           return;
         }
 
