@@ -1390,7 +1390,38 @@ const routes = {
             return;
           }
 
-          // Проверяем, есть ли уже такой мод
+          // Специальная логика для lightspeed mode - он приоритетный
+          if (modeName === 'lightspeed') {
+            // Проверяем, есть ли уже lightspeed
+            if (user.purchasedModes.includes('lightspeed')) {
+              resolve({
+                status: 200,
+                body: {
+                  success: true,
+                  purchasedModes: user.purchasedModes,
+                  message: 'Lightspeed mode already activated'
+                }
+              });
+              return;
+            }
+
+            // Добавляем lightspeed в начало массива для приоритета
+            const updatedModes = ['lightspeed', ...user.purchasedModes.filter(mode => mode !== 'lightspeed')];
+            await user.update({ purchasedModes: updatedModes });
+            console.log('Lightspeed mode activated:', { telegramId, updatedModes });
+
+            resolve({
+              status: 200,
+              body: {
+                success: true,
+                purchasedModes: updatedModes,
+                message: 'Lightspeed mode activated!'
+              }
+            });
+            return;
+          }
+
+          // Для других режимов - обычная логика
           if (user.purchasedModes.includes(modeName)) {
             resolve({
               status: 200,
