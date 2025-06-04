@@ -1326,15 +1326,53 @@ const routes = {
       req.on('end', async () => {
         try {
           const data = JSON.parse(body);
-          const { telegramId, modeName } = data;
-          console.log('Received mode update request:', { telegramId, modeName });
+          const { telegramId, modeName, maxEnergy } = data;
+          console.log('Received mode update request:', { telegramId, modeName, maxEnergy });
 
-          if (!telegramId || !modeName) {
+          if (!telegramId) {
             resolve({
               status: 400,
-              body: { 
-                success: false, 
-                error: 'Missing required parameters' 
+              body: {
+                success: false,
+                error: 'Missing telegramId parameter'
+              }
+            });
+            return;
+          }
+
+          // Если передан только maxEnergy без modeName, обновляем только энергию
+          if (maxEnergy && !modeName) {
+            const user = await User.findOne({ where: { telegramId } });
+            if (!user) {
+              resolve({
+                status: 404,
+                body: {
+                  success: false,
+                  error: 'User not found'
+                }
+              });
+              return;
+            }
+
+            await user.update({ maxEnergy });
+            console.log('Updated maxEnergy only:', { telegramId, maxEnergy });
+
+            resolve({
+              status: 200,
+              body: {
+                success: true,
+                maxEnergy: maxEnergy
+              }
+            });
+            return;
+          }
+
+          if (!modeName) {
+            resolve({
+              status: 400,
+              body: {
+                success: false,
+                error: 'Missing modeName parameter'
               }
             });
             return;
